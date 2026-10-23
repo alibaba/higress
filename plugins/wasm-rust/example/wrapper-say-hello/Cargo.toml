@@ -1,0 +1,15 @@
+[package]
+name = "wrapper-say-hello"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+
+[dependencies]
+higress-wasm-rust = { path = "../../", version = "0.1.0" }
+proxy-wasm = { git="https://github.com/higress-group/proxy-wasm-rust-sdk", branch="main", version="0.2.2" }
+serde = { version = "1.0", features = ["derive"] }
+multimap = "*"

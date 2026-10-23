@@ -1,0 +1,148 @@
+# Higress API MCP Server
+
+Higress API MCP Server provides MCP tools to manage Higress routes, service sources, AI routes, AI providers, MCP servers, plugins and other resources.
+
+## Features
+
+### Route Management
+- `list-routes`: List routes
+- `get-route`: Get route
+- `add-route`: Add route
+- `update-route`: Update route
+- `delete-route`: Delete route
+
+### AI Route Management
+- `list-ai-routes`: List AI routes
+- `get-ai-route`: Get AI route
+- `add-ai-route`: Add AI route
+- `update-ai-route`: Update AI route
+- `delete-ai-route`: Delete AI route
+
+### Service Source Management
+- `list-service-sources`: List service sources
+- `get-service-source`: Get service source
+- `add-service-source`: Add service source
+- `update-service-source`: Update service source
+- `delete-service-source`: Delete service source
+
+### AI Provider Management
+- `list-ai-providers`: List LLM providers
+- `get-ai-provider`: Get LLM provider
+- `add-ai-provider`: Add LLM provider
+- `update-ai-provider`: Update LLM provider
+- `delete-ai-provider`: Delete LLM provider
+
+### MCP Server Management
+- `list-mcp-servers`: List MCP servers
+- `get-mcp-server`: Get MCP server details
+- `add-or-update-mcp-server`: Add or update MCP server
+- `delete-mcp-server`: Delete MCP server
+- `list-mcp-server-consumers`: List MCP server allowed consumers
+- `add-mcp-server-consumers`: Add MCP server allowed consumers
+- `delete-mcp-server-consumers`: Delete MCP server allowed consumers
+- `swagger-to-mcp-config`: Convert Swagger content to MCP configuration
+
+### Plugin Management
+- `list-plugin-instances`: List all plugin instances for a specific scope (supports global, domain, service, and route levels)
+- `get-plugin`: Get plugin configuration
+- `delete-plugin`: Delete plugin
+- `update-request-block-plugin`: Update request block configuration
+
+## Configuration Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `higressURL` | string | Required | Higress Console URL address |
+| `description` | string | Optional | MCP Server description |
+
+Configuration Example:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  annotations:
+    meta.helm.sh/release-name: higress
+    meta.helm.sh/release-namespace: higress-system
+  labels:
+    app: higress-gateway
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: higress-gateway
+    app.kubernetes.io/version: 2.1.4
+    helm.sh/chart: higress-core-2.1.4
+    higress: higress-system-higress-gateway
+  name: higress-config
+  namespace: higress-system
+data:
+  higress: |-
+    mcpServer:
+      sse_path_suffix: /sse # SSE connection path suffix
+      enable: true # Enable MCP Server
+      redis:
+        address: redis-stack-server.higress-system.svc.cluster.local:6379 # Redis service address
+        username: "" # Redis username (optional)
+        password: "" # Redis password (optional, plaintext)
+        passwordSecret: # Reference password from Secret (recommended, higher priority than password)
+          name: redis-credentials # Secret name
+          key: password # Key in Secret
+          namespace: higress-system # Secret namespace (optional, defaults to higress-system)
+        db: 0 # Redis database (optional)
+      match_list: # MCP Server session persistence routing rules (when matching the following paths, it will be recognized as an MCP session and maintained through SSE)
+        - match_rule_domain: "*"
+          match_rule_path: /higress-api
+          match_rule_type: "prefix"
+      servers:
+        - name: higress-api-mcp-server # MCP Server name
+          path: /higress-api # Access path, needs to match the configuration in match_list
+          type: higress-api # Type defined in RegisterServer function
+          config:
+            higressURL: http://higress-console.higress-system.svc.cluster.local:8080
+```
+
+## Authentication Configuration
+
+Higress API MCP Server uses HTTP Basic Authentication for authorization. Clients need to include an `Authorization` header in their requests.
+
+### Configuration Example
+
+```json
+{
+  "mcpServers": {
+    "higress_api_mcp": {
+      "url": "http://127.0.0.1:80/higress-api/sse",
+      "headers": {
+        "Authorization": "Basic YWRtaW46YWRtaW4="
+      }
+    }
+  }
+}
+```
+
+**Notes:**
+- The `Authorization` header uses Basic Authentication format: `Basic base64(username:password)`
+- The example `YWRtaW46YWRtaW4=` is the Base64 encoding of `admin:admin`
+- You need to generate the appropriate Base64 encoding based on your actual Higress Console username and password
+
+### Generating Authorization Header
+
+Use the following command to generate the Basic Auth Authorization header:
+
+```bash
+echo -n "username:password" | base64
+```
+
+Replace `username` and `password` with your actual Higress Console credentials.
+
+## Demo
+
+1. create openapi-mcp-server
+
+https://private-user-images.githubusercontent.com/153273766/507768507-42077ff3-731e-42fe-8b10-ccae0d1b3378.mov?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE4Nzg4NjAsIm5iZiI6MTc2MTg3ODU2MCwicGF0aCI6Ii8xNTMyNzM3NjYvNTA3NzY4NTA3LTQyMDc3ZmYzLTczMWUtNDJmZS04YjEwLWNjYWUwZDFiMzM3OC5tb3Y_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMDMxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTAzMVQwMjQyNDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT0xODVlY2QzYTBmODY0YzRlMzFjNWI1NGE3MGIyZDAxMGRmZjczNTNhMDZmNjdhMGYxMjM2NzVjMjEyYzdlNWFkJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.qzpx2W52Zl9WuWidgEMTYP1sMfrqcgsXtNbNvYK39wE
+
+2. create ai-route
+
+https://private-user-images.githubusercontent.com/153273766/507769175-96b6002f-389d-46e8-b696-c5bcf518a1c6.mov?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE4Nzg4NjAsIm5iZiI6MTc2MTg3ODU2MCwicGF0aCI6Ii8xNTMyNzM3NjYvNTA3NzY5MTc1LTk2YjYwMDJmLTM4OWQtNDZlOC1iNjk2LWM1YmNmNTE4YTFjNi5tb3Y_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMDMxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTAzMVQwMjQyNDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1mYTFiZjY0Zjg0NWVhYzA3NzhiODc2NzUwMDg3MDZiYjI4ZTQ4YWRkNmIwMzEyMWI5ZjE0MTQ3NTZlZmU5NTEwJlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.XW6eJxjCpcblQCCtidYoNCwn2yUkXt3d9zuDYxDIF8Q
+
+3. create http-bin + custom response
+
+https://private-user-images.githubusercontent.com/153273766/507769227-73b624d5-70b8-4c94-aa87-42b3ff8b094d.mov?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NjE4Nzg4NjAsIm5iZiI6MTc2MTg3ODU2MCwicGF0aCI6Ii8xNTMyNzM3NjYvNTA3NzY5MjI3LTczYjYyNGQ1LTcwYjgtNGM5NC1hYTg3LTQyYjNmZjhiMDk0ZC5tb3Y_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1BS0lBVkNPRFlMU0E1M1BRSzRaQSUyRjIwMjUxMDMxJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI1MTAzMVQwMjQyNDBaJlgtQW16LUV4cGlyZXM9MzAwJlgtQW16LVNpZ25hdHVyZT1jMjc1N2MyZTE2N2RlYjJkZThhZWMwZTc5YWM1ODI3ODgyYjM1Yzk3Mzk1ZjVlMDljZGM4NGJhM2MwZTE5N2E5JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCJ9.R4h7AmTKadKxd6qr7m-i8JPsxoJHcrN49eVbB0ixYyU

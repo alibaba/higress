@@ -1,0 +1,464 @@
+{
+  "info": {
+    "description": "全国招投标招标中标合同API接口信息查询",
+    "title": "全国招中标项目查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/getProject": {
+      "post": {
+        "operationId": "招中标项目详情查询",
+        "summary": "招中标项目详情查询",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publishTime": {
+                    "description": "项目信息发布时间",
+                    "type": "string",
+                    "example": "2023-01-18 22:41:27"
+                  },
+                  "id": {
+                    "description": "项目信息ID",
+                    "type": "string",
+                    "example": "125829541"
+                  }
+                },
+                "required": [
+                  "id",
+                  "publishTime"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "content": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "integer",
+                          "description": "数据ID",
+                          "example": 125829541
+                        },
+                        "isFollowUp": {
+                          "type": "integer",
+                          "description": "是否有后续",
+                          "example": 0
+                        },
+                        "userID": {
+                          "type": "integer",
+                          "description": "用户ID",
+                          "example": 0
+                        },
+                        "title": {
+                          "type": "string",
+                          "description": "标题",
+                          "example": "青海省某单位数字乡村试点支撑服务采购项目_中选结果公示"
+                        },
+                        "collectWebID": {
+                          "type": "integer",
+                          "description": "收集网页ID",
+                          "example": 1396
+                        },
+                        "cityCode": {
+                          "type": "string",
+                          "description": "城市代码",
+                          "example": "510100"
+                        },
+                        "proviceCode": {
+                          "type": "string",
+                          "description": "省份代码",
+                          "example": "510000"
+                        },
+                        "publish": {
+                          "type": "string",
+                          "description": "发布时间",
+                          "example": "2023-01-18 22:41:27"
+                        },
+                        "newsTypeID": {
+                          "type": "integer",
+                          "description": "新闻类型ID",
+                          "example": 2
+                        },
+                        "classid": {
+                          "type": "integer",
+                          "description": "分类ID",
+                          "example": 2
+                        }
+                      }
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码",
+                      "example": 200
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "响应消息",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getStructureDetail": {
+      "post": {
+        "operationId": "招中标项目结构化查询",
+        "summary": "招中标项目结构化查询",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "publishTime": {
+                    "description": "项目信息发布时间\t",
+                    "type": "string",
+                    "example": "2023-01-18 22:41:27"
+                  },
+                  "id": {
+                    "description": "项目信息ID",
+                    "type": "string",
+                    "example": "125829541"
+                  }
+                },
+                "required": [
+                  "id",
+                  "publishTime"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "agencyContactPersons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "bidMoney": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "cityCode": {
+                          "type": "string",
+                          "example": "510100"
+                        },
+                        "partyAContactPersons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "newsTypeID": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "projectID": {
+                          "type": "integer",
+                          "example": 125829541
+                        },
+                        "partyBPhoneArr": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "budgetMoney": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "publishTime": {
+                          "type": "string",
+                          "example": "2023-01-18 22:41:27"
+                        },
+                        "partyBContactPersons": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "proviceCode": {
+                          "type": "string",
+                          "example": "510000"
+                        },
+                        "agencyName": {
+                          "type": "string",
+                          "example": "中移系统集成有限公司/中国邮电器材集团有限公司"
+                        },
+                        "collectUrl": {
+                          "type": "string",
+                          "example": "https://b2b.10086.cn/b2b/main/viewNoticeContent.html?noticeBean.id=917359"
+                        },
+                        "partyBName": {
+                          "type": "string",
+                          "example": "美讯慧云科技（成都）有限公司"
+                        },
+                        "partyAPhoneArr": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "agencyPhoneArr": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "code": {
+                      "type": "integer",
+                      "example": 1
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/queryProject": {
+      "post": {
+        "operationId": "招中标项目列表查询",
+        "summary": "招中标项目列表查询",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "classId": {
+                    "description": "信息类别( 1：招标，2：中标)",
+                    "type": "string",
+                    "example": "1"
+                  },
+                  "endDate": {
+                    "description": "结束日期(格式：yyyy-MM-dd)",
+                    "type": "string",
+                    "example": "2023-03-15"
+                  },
+                  "searchType": {
+                    "description": "搜索业务类别(1：智能订阅搜索，2：精准订阅搜索，3：高级定义条件搜索)",
+                    "type": "integer",
+                    "example": "1"
+                  },
+                  "pageIndex": {
+                    "description": "页码",
+                    "type": "integer",
+                    "example": "1"
+                  },
+                  "cityCode": {
+                    "description": "市编码（以地级市的身份证号码前四位置+00 来表示），该信息在返回参数中可能没有返回。",
+                    "type": "string",
+                    "example": "441300"
+                  },
+                  "searchMode": {
+                    "description": "搜索模(1：全部，2：标题，3：内容)",
+                    "type": "integer",
+                    "example": "3"
+                  },
+                  "proviceCode": {
+                    "description": "省编码（省或直辖市所在地区身份证号前两位+0000），例如贵州省编码为520000",
+                    "type": "string",
+                    "example": "440000"
+                  },
+                  "pageSize": {
+                    "description": "页数",
+                    "type": "integer",
+                    "example": "10"
+                  },
+                  "keyword": {
+                    "description": "搜索值",
+                    "type": "string",
+                    "example": "服务器"
+                  },
+                  "startDate": {
+                    "description": "开始日期(格式：yyyy-MM-dd)",
+                    "type": "string",
+                    "example": "2023-03-01"
+                  }
+                },
+                "required": [
+                  "startDate",
+                  "endDate",
+                  "classId",
+                  "searchMode",
+                  "searchType",
+                  "pageIndex",
+                  "pageSize"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "content": {
+                                "type": "string",
+                                "example": "该等保服务项目内容针对云平台及其主要硬件,包括云平台物理服务器"
+                              },
+                              "id": {
+                                "type": "integer",
+                                "example": 132205333
+                              },
+                              "title": {
+                                "type": "string",
+                                "example": "2023年惠州市电子政务云二期平台等级保护复测服务采购 公开询价公告"
+                              },
+                              "collectWebID": {
+                                "type": "integer",
+                                "example": 1400
+                              },
+                              "cityCode": {
+                                "type": "string",
+                                "example": "441300"
+                              },
+                              "score": {
+                                "type": "number",
+                                "example": 2.0038843
+                              },
+                              "proviceCode": {
+                                "type": "string",
+                                "example": "440000"
+                              },
+                              "hasFile": {
+                                "type": "integer",
+                                "example": 0
+                              },
+                              "publish": {
+                                "type": "string",
+                                "example": "2023-03-15 18:21:02"
+                              },
+                              "newsTypeID": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "isHasFile": {
+                                "type": "boolean",
+                                "example": false
+                              }
+                            }
+                          }
+                        },
+                        "state": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "mess": {
+                          "type": "string",
+                          "example": "ok"
+                        },
+                        "seKeyWords": {
+                          "type": "string",
+                          "example": "服务器"
+                        },
+                        "startdate": {
+                          "type": "string",
+                          "example": "2023-03-01 00:00:00"
+                        },
+                        "hasNext": {
+                          "type": "boolean",
+                          "example": true
+                        },
+                        "pageID": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "pageNumber": {
+                          "type": "integer",
+                          "example": 0
+                        },
+                        "enddate": {
+                          "type": "string",
+                          "example": "2023-03-15 23:59:59"
+                        },
+                        "maxCount": {
+                          "type": "integer",
+                          "example": 20
+                        },
+                        "pageid": {
+                          "type": "integer",
+                          "example": 1
+                        }
+                      }
+                    },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://gov.market.alicloudapi.com"
+    }
+  ]
+}

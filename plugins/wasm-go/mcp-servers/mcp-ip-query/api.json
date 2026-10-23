@@ -1,0 +1,218 @@
+{
+  "info": {
+    "description": "【IP归属地查询IP地址查询IP地址归属地查询IP地址解析精准版】通过IP地址查询IP归属地相关信息，包含国家、省、市和运营商等信息，支持IPV4、IPV6查询。—— 我们只做精品！",
+    "title": "精准版IP归属地查询-IP地址归属地-IP地址归属地查询-IP地址解析-IP归属地址-IP地址归属地查询（支持IPV6）",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/ip/query-v3": {
+      "post": {
+        "operationId": "IP地址查询精准版",
+        "summary": "根据 IP地址查询归属地信息，包含国家、省、市等信息\n同时支持IPv6和IPv4\nIPv4不返回经纬度",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ip": {
+                    "description": "ip",
+                    "type": "string",
+                    "example": "IP地址"
+                  }
+                },
+                "required": [
+                  "ip"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "详见code返回码说明"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "code对应的描述"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次唯一请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "longitude": {
+                          "type": "string",
+                          "description": "经度"
+                        },
+                        "latitude": {
+                          "type": "string",
+                          "description": "纬度"
+                        },
+                        "continent": {
+                          "type": "string",
+                          "description": "大洲"
+                        },
+                        "nation": {
+                          "type": "string",
+                          "description": "国家"
+                        },
+                        "province": {
+                          "type": "string",
+                          "description": "省份"
+                        },
+                        "city": {
+                          "type": "string",
+                          "description": "市"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "行政区划代码"
+                        },
+                        "areaCode": {
+                          "type": "string",
+                          "description": "国家编码"
+                        },
+                        "timezone": {
+                          "type": "string",
+                          "description": "时区"
+                        },
+                        "zipcode": {
+                          "type": "string",
+                          "description": "邮编"
+                        },
+                        "owner": {
+                          "type": "string",
+                          "description": "所属机构"
+                        },
+                        "isp": {
+                          "type": "string",
+                          "description": "运营商"
+                        },
+                        "radius": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/ipv3-group/ip/address-query-v2": {
+      "post": {
+        "operationId": "IP地址查询升级版",
+        "summary": "根据IP地址查询归属地信息，包含国家、省、市等信息，支持IPv6",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "ip": {
+                    "description": "ip",
+                    "type": "string",
+                    "example": "IP地址"
+                  }
+                },
+                "required": [
+                  "ip"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "详见code返回码说明",
+                      "example": 200
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "code对应的描述",
+                      "example": "成功"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次唯一请求号",
+                      "example": 69564903663951240000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "longitude": {
+                          "type": "string",
+                          "description": "经度",
+                          "example": 120.298501
+                        },
+                        "latitude": {
+                          "type": "string",
+                          "description": "纬度",
+                          "example": 30.41875
+                        },
+                        "nation": {
+                          "type": "string",
+                          "description": "国家",
+                          "example": "中国"
+                        },
+                        "province": {
+                          "type": "string",
+                          "description": "省份",
+                          "example": "浙江省"
+                        },
+                        "city": {
+                          "type": "string",
+                          "description": "市",
+                          "example": "杭州市"
+                        },
+                        "district": {
+                          "type": "string",
+                          "description": "区县",
+                          "example": "余杭区"
+                        },
+                        "code": {
+                          "type": "string",
+                          "description": "区县编码",
+                          "example": 330110
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jmipquery3.market.alicloudapi.com"
+    }
+  ]
+}

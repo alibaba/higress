@@ -1,0 +1,295 @@
+{
+  "info": {
+    "description": "中医智能舌象辨证API，集成舌象处理、舌象分析、智能问询、内容与产品定制等能力，接口功能丰富，多维数据融合分析及定制化健康方案输出，生成精准个性化中医健康评估报告，结合动态产品推荐功能，为合作伙伴提供高附加值服务闭环，助力企业优化产品服务体系。\n识图准确、舌象参数更多、症状推荐科学有效、康养方案出自经典名家、结合中西医理论等是本产品卓越非凡的根本。",
+    "title": "【医宗卓越版】AI舌诊-体质检测-健康报告-超强定制商业版",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/symptomDiagnose/cloudResult": {
+      "post": {
+        "operationId": "AI舌诊-舌象识别-体质检测-健康报告",
+        "summary": "AI舌诊-舌象识别-体质检测-健康报告",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tonguePic": {
+                    "type": "string",
+                    "description": "舌头图片的URL地址"
+                  },
+                  "customerSex": {
+                    "type": "string",
+                    "description": "顾客性别"
+                  },
+                  "customerAge": {
+                    "type": "integer",
+                    "description": "顾客年龄"
+                  },
+                  "frontRear": {
+                    "type": "string",
+                    "description": "前后位置标识"
+                  },
+                  "situation": {
+                    "type": "integer",
+                    "description": "当前情况标识"
+                  }
+                },
+                "required": [
+                  "tonguePic",
+                  "customerSex",
+                  "customerAge",
+                  "frontRear",
+                  "situation"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "操作结果信息",
+                      "example": "操作成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "操作状态码",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "scoring": {
+                          "type": "string",
+                          "description": "评分"
+                        },
+                        "faceTongueFeatures": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "status": {
+                                "type": "string"
+                              },
+                              "termBroadHeading": {
+                                "type": "string",
+                                "description": "术语大类"
+                              },
+                              "terminology": {
+                                "type": "string",
+                                "description": "术语"
+                              },
+                              "feature": {
+                                "type": "string",
+                                "description": "特征"
+                              },
+                              "clinicalSignificance": {
+                                "type": "string",
+                                "description": "临床意义"
+                              },
+                              "normalStatus": {
+                                "type": "string",
+                                "description": "正常状态"
+                              }
+                            }
+                          }
+                        },
+                        "diagnoseFeatures": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "typeName": {
+                                "type": "string",
+                                "description": "类型名称"
+                              },
+                              "skillName": {
+                                "type": "string",
+                                "description": "技能名称"
+                              },
+                              "skillEffect": {
+                                "type": "string",
+                                "description": "技能效果"
+                              },
+                              "acupointName": {
+                                "type": "string",
+                                "description": "穴位名称"
+                              },
+                              "acupointEffect": {
+                                "type": "string",
+                                "description": "穴位效果"
+                              },
+                              "medicatedFoods": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "genus": {
+                                      "type": "string",
+                                      "description": "类别"
+                                    },
+                                    "foodName": {
+                                      "type": "string",
+                                      "description": "食物名称"
+                                    },
+                                    "formula": {
+                                      "type": "string",
+                                      "description": "配方"
+                                    },
+                                    "effect": {
+                                      "type": "string",
+                                      "description": "效果"
+                                    },
+                                    "prescriptionAnalysis": {
+                                      "type": "string",
+                                      "description": "处方分析"
+                                    },
+                                    "source": {
+                                      "type": "string",
+                                      "description": "来源"
+                                    },
+                                    "provenance": {
+                                      "type": "string",
+                                      "description": "出处"
+                                    },
+                                    "attention": {
+                                      "type": "string",
+                                      "description": "注意事项"
+                                    },
+                                    "usage": {
+                                      "type": "string",
+                                      "description": "使用方法"
+                                    },
+                                    "apply": {
+                                      "type": "string",
+                                      "description": "适用症状"
+                                    }
+                                  }
+                                }
+                              },
+                              "living": {
+                                "type": "string",
+                                "description": "生活习惯"
+                              },
+                              "causesFormation": {
+                                "type": "string",
+                                "description": "形成原因"
+                              },
+                              "thisExplain": {
+                                "type": "string",
+                                "description": "解释"
+                              },
+                              "scoring": {
+                                "type": "string",
+                                "description": "评分"
+                              }
+                            }
+                          }
+                        },
+                        "recommendSymptoms": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "symptom": {
+                                "type": "string",
+                                "description": "症状"
+                              },
+                              "probility": {
+                                "type": "string",
+                                "description": "概率"
+                              }
+                            }
+                          }
+                        },
+                        "physiqueFeatures": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "syndromeName": {
+                                "type": "string",
+                                "description": "体质名称"
+                              },
+                              "pathologyExplain": {
+                                "type": "string",
+                                "description": "病理解释"
+                              },
+                              "susceptibilityDisease": {
+                                "type": "string",
+                                "description": "易感疾病"
+                              },
+                              "syndromeExplain": {
+                                "type": "string",
+                                "description": "体质解释"
+                              },
+                              "physiologyExplain": {
+                                "type": "string",
+                                "description": "生理解释"
+                              },
+                              "scoring": {
+                                "type": "string",
+                                "description": "评分"
+                              }
+                            }
+                          }
+                        },
+                        "viscera": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "syndromeName": {
+                                "type": "string",
+                                "description": "脏腑名称"
+                              },
+                              "pathologyExplain": {
+                                "type": "string",
+                                "description": "病理解释"
+                              },
+                              "susceptibilityDisease": {
+                                "type": "string",
+                                "description": "易感疾病"
+                              },
+                              "syndromeExplain": {
+                                "type": "string",
+                                "description": "脏腑解释"
+                              },
+                              "physiologyExplain": {
+                                "type": "string",
+                                "description": "生理解释"
+                              },
+                              "scoring": {
+                                "type": "string",
+                                "description": "评分"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://aizong.market.alicloudapi.com"
+    }
+  ]
+}

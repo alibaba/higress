@@ -1,0 +1,55 @@
+server:
+  name: product-barcode-query
+  config:
+    appCode: ""
+tools:
+  - name: barcode-query
+    description: 国内商品条码查询
+    args:
+      - name: code
+        description: 国内商品条形码（69开头）
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://barcode14.market.alicloudapi.com/barcode
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **showapi_res_body**:  (Type: object)
+          - **showapi_res_body.code**: 条形码 (Type: string)
+          - **showapi_res_body.engName**: 英文名称 (Type: string)
+          - **showapi_res_body.flag**: 查询结果标志 (Type: string)
+          - **showapi_res_body.goodsName**: 商品名称 (Type: string)
+          - **showapi_res_body.goodsType**: 商品分类 (Type: string)
+          - **showapi_res_body.img**: 图片地址 (Type: string)
+          - **showapi_res_body.manuName**: 厂商 (Type: string)
+          - **showapi_res_body.note**: 备注信息 (Type: string)
+          - **showapi_res_body.price**: 参考价格(单位:元) (Type: string)
+          - **showapi_res_body.remark**: 查询结果备注 (Type: string)
+          - **showapi_res_body.ret_code**: 返回代码 (Type: string)
+          - **showapi_res_body.spec**: 规格 (Type: string)
+          - **showapi_res_body.sptmImg**: 条码图片 (Type: string)
+          - **showapi_res_body.trademark**: 商标/品牌名称 (Type: string)
+          - **showapi_res_body.ycg**: 原产地 (Type: string)
+        - **showapi_res_code**: 响应代码 (Type: integer)
+        - **showapi_res_error**: 错误信息 (Type: string)
+
+        ## Original Response
+

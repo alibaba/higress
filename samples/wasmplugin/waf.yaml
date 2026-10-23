@@ -1,0 +1,14 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: waf
+  namespace: higress-system
+spec:
+  # build from https://github.com/corazawaf/coraza-proxy-wasm
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/corazawaf:1.0.0
+  defaultConfig:
+    rules:
+    - "Include @crs-setup-conf"
+    - "Include @recommended-conf"
+    - "Include @owasp_crs/*.conf"
+    - "SecRuleEngine on"

@@ -1,0 +1,202 @@
+server:
+  name: train-ticket-query
+  config:
+    appCode: ""
+tools:
+  - name: train-ticket-query
+    description: 通过出发、到达、时间，获取车次、车型、始发站、终点站等信息。
+    args:
+      - name: date
+        description: 时间
+        type: string
+        required: true
+        position: query
+      - name: end
+        description: 到达
+        type: string
+        required: true
+        position: query
+      - name: start
+        description: 出发
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jisutrain.market.alicloudapi.com/train/ticket
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 消息 (Type: string)
+        - **result**:  (Type: array)
+          - **result[].arrivaltime**: 到达时间 (Type: string)
+          - **result[].costtime**: 用时 (Type: string)
+          - **result[].day**: 日期 (Type: string)
+          - **result[].departstation**: 出发站 (Type: string)
+          - **result[].departuretime**: 出发时间 (Type: string)
+          - **result[].endstation**: 最终站 (Type: string)
+          - **result[].numed**: 二等座 (Type: string)
+          - **result[].numgr**: 高级软卧 (Type: string)
+          - **result[].numqt**: 其他 (Type: string)
+          - **result[].numrw**: 软卧 (Type: string)
+          - **result[].numrz**: 软座 (Type: string)
+          - **result[].numsw**: 商务座 (Type: string)
+          - **result[].numtd**: 特等座 (Type: string)
+          - **result[].numwz**: 无座 (Type: string)
+          - **result[].numyd**: 一等座 (Type: string)
+          - **result[].numyw**: 硬卧 (Type: string)
+          - **result[].numyz**: 硬座 (Type: string)
+          - **result[].station**: 当前站 (Type: string)
+          - **result[].terminalstation**: 终点站 (Type: string)
+          - **result[].trainno**: 列车号 (Type: string)
+          - **result[].type**: 列车型号 (Type: string)
+        - **status**: 状态码 (Type: string)
+
+        ## Original Response
+
+  - name: station-query
+    description: 根据出发、到达、是否高铁返回车次、类型、出发站、到达站等信息。
+    args:
+      - name: date
+        description: 时间
+        type: string
+        position: query
+      - name: end
+        description: 到达
+        type: string
+        required: true
+        position: query
+      - name: ishigh
+        description: 是否高铁
+        type: integer
+        position: query
+      - name: start
+        description: 出发
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jisutrain.market.alicloudapi.com/train/station2s
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**:  (Type: string)
+        - **result**:  (Type: array)
+          - **result[].arrivaltime**:  (Type: string)
+          - **result[].costtime**:  (Type: string)
+          - **result[].departuretime**:  (Type: string)
+          - **result[].distance**:  (Type: string)
+          - **result[].endstation**:  (Type: string)
+          - **result[].isend**:  (Type: string)
+          - **result[].priceed**:  (Type: string)
+          - **result[].pricegr1**:  (Type: string)
+          - **result[].pricegr2**:  (Type: string)
+          - **result[].pricerw1**:  (Type: string)
+          - **result[].pricerw2**:  (Type: string)
+          - **result[].pricesw**:  (Type: string)
+          - **result[].pricetd**:  (Type: string)
+          - **result[].priceyd**:  (Type: string)
+          - **result[].priceyw1**:  (Type: string)
+          - **result[].priceyw2**:  (Type: string)
+          - **result[].priceyw3**:  (Type: string)
+          - **result[].sequenceno**:  (Type: string)
+          - **result[].station**:  (Type: string)
+          - **result[].trainno**:  (Type: string)
+          - **result[].type**:  (Type: string)
+        - **status**:  (Type: string)
+
+        ## Original Response
+
+  - name: trainno-query
+    description: 通过查询车次，获取类型、序号、车站、天数等信息。
+    args:
+      - name: date
+        description: 时间
+        type: string
+        position: query
+      - name: trainno
+        description: 车次
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jisutrain.market.alicloudapi.com/train/line
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 响应消息 (Type: string)
+        - **result**:  (Type: object)
+          - **result.list**:  (Type: array)
+            - **result.list[].arrivaltime**: 到达时间 (Type: string)
+            - **result.list[].costtime**: 行驶时间 (Type: string)
+            - **result.list[].day**: 天数 (Type: string)
+            - **result.list[].departuretime**: 出发时间 (Type: string)
+            - **result.list[].distance**: 距离 (Type: string)
+            - **result.list[].isend**: 是否为终点站 (Type: string)
+            - **result.list[].priceed**: 二等座打折价格 (Type: string)
+            - **result.list[].pricegr1**: 一等座价格 (Type: string)
+            - **result.list[].pricegr2**: 二等座价格 (Type: string)
+            - **result.list[].pricerw1**: 高级软卧上铺价格 (Type: string)
+            - **result.list[].pricerw2**: 高级软卧下铺价格 (Type: string)
+            - **result.list[].pricesw**: 商务座价格 (Type: string)
+            - **result.list[].pricetd**: 特等座价格 (Type: string)
+            - **result.list[].priceyd**: 动卧价格 (Type: string)
+            - **result.list[].priceyw1**: 软卧上铺价格 (Type: string)
+            - **result.list[].priceyw2**: 软卧下铺价格 (Type: string)
+            - **result.list[].priceyw3**: 软卧包厢价格 (Type: string)
+            - **result.list[].sequenceno**: 序号 (Type: string)
+            - **result.list[].station**: 车站名称 (Type: string)
+            - **result.list[].stoptime**: 停靠时间 (Type: string)
+          - **result.trainno**: 列车编号 (Type: string)
+          - **result.type**: 列车型号 (Type: string)
+        - **status**: 状态码 (Type: string)
+
+        ## Original Response
+

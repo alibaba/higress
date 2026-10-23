@@ -1,0 +1,63 @@
+profile: all
+global:
+  install: k8s # install mode k8s/local-k8s/local-docker/local
+  ingressClass: higress
+  enableIstioAPI: true
+  enableGatewayAPI: false
+  namespace: higress-system
+
+console:
+  port: 8080
+  replicas: 1
+  o11yEnabled: false
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+
+gateway:
+  replicas: 1
+  httpPort: 80
+  httpsPort: 443
+  metricsPort: 15020
+  resources:
+    requests:
+      cpu: 2000m
+      memory: 2048Mi
+    limits:
+      cpu: 2000m
+      memory: 2048Mi
+
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 500m
+      memory: 2048Mi
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+
+storage:
+  url: nacos://127.0.0.1:8848 #  file://opt/higress/conf
+  ns: higress-system
+  username:
+  password:
+  dataEncKey:
+
+# values passed through to helm
+values:
+
+
+charts:
+  higress:
+    url: https://higress.io/helm-charts
+    name: higress
+    version: latest
+  standalone:
+    url: https://higress.io/standalone/get-higress.sh
+    name: standalone
+    version: latest

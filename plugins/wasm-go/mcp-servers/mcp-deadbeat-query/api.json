@@ -1,0 +1,150 @@
+{
+  "info": {
+    "description": "【法院失信被执行人个人失信被执行全国失信被执行信息查询】查询个人失信被执行详细信息，包括主体名称，法院名称、案件状态，执行标的、案号、法定代表人、执行文号、发布日期、执行情况等。直连官方，实时查询。—— 我们只做精品！",
+    "title": "【聚美智数】法院失信被执行人查询-个人失信被执行--全国失信被执行人-老赖黑名单-失信被执行人-失信被执行查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/personal/disenforcement": {
+      "post": {
+        "operationId": "失信被执行人信息查询",
+        "summary": "根据姓名、身份证号和手机号返回个人失信被执行情况",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "idcard_number": {
+                    "description": "身份证号",
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "姓名",
+                    "type": "string"
+                  },
+                  "mobile_number": {
+                    "description": "手机号",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "idcard_number",
+                  "mobile_number"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "example": "074388502348792558"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "caseCount": {
+                          "type": "integer",
+                          "example": 2
+                        },
+                        "caseList": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "datatype": {
+                                "type": "string",
+                                "example": "失信被执行人"
+                              },
+                              "iname": {
+                                "type": "string",
+                                "example": "赵五"
+                              },
+                              "sexname": {
+                                "type": "string",
+                                "example": "女性"
+                              },
+                              "age": {
+                                "type": "string",
+                                "example": 35
+                              },
+                              "casecode": {
+                                "type": "string",
+                                "example": "（2018）粤0106执2984号"
+                              },
+                              "gistcid": {
+                                "type": "string",
+                                "example": "（2016）粤0106民初9317号"
+                              },
+                              "areaname": {
+                                "type": "string",
+                                "example": "广东省"
+                              },
+                              "courtname": {
+                                "type": "string",
+                                "example": "广东省广州市天河区人民法院"
+                              },
+                              "regdate": {
+                                "type": "string",
+                                "format": "date",
+                                "example": "2018-02-01T00:00:00Z"
+                              },
+                              "publishdate": {
+                                "type": "string",
+                                "format": "date",
+                                "example": "2018-05-22T00:00:00Z"
+                              },
+                              "buesinessentity": {
+                                "type": "string"
+                              },
+                              "partytypename": {
+                                "type": "string"
+                              },
+                              "sign": {
+                                "type": "string"
+                              },
+                              "signalDesc": {
+                                "type": "string"
+                              },
+                              "signalRating": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jumjokk.market.alicloudapi.com"
+    }
+  ]
+}

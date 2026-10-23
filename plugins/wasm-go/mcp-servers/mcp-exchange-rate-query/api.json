@@ -1,0 +1,359 @@
+{
+  "info": {
+    "description": "人民币、美元、欧元、英镑、日元、韩元、加元等100多种货币的实时汇率查询，提供汇率转换、单个货币对应的热门货币汇率行情等API。",
+    "title": "【极速数据】汇率查询_汇率转换_汇率查询转换_汇率换算_汇率接口API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/exchange/bank": {
+      "get": {
+        "operationId": "十大银行的外汇牌价",
+        "summary": "十大银行的外汇牌价",
+        "parameters": [
+          {
+            "description": "银行编码。工商银行：ICBC ，中国银行：BOC ，农业银行：ABCHINA ，交通银行：BANKCOMM ，建设银行：CCB ，招商银行：CMBCHINA ，光大银行：CEBBANK ，浦发银行：SPDB ，兴业银行：CIB ，中信银行：ECITIC，默认BOC",
+            "example": "BOC",
+            "in": "query",
+            "name": "bank",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "integer",
+                      "description": "返回状态码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "状态信息"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "bank": {
+                          "type": "string",
+                          "description": "银行代号"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "string",
+                                "description": "货币代码"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "货币名称"
+                              },
+                              "midprice": {
+                                "type": "string",
+                                "description": "中间价"
+                              },
+                              "cashbuyprice": {
+                                "type": "string",
+                                "description": "钞买价"
+                              },
+                              "forexbuyprice": {
+                                "type": "string",
+                                "description": "汇买价"
+                              },
+                              "cashsellprice": {
+                                "type": "string",
+                                "description": "钞卖价"
+                              },
+                              "forexsellprice": {
+                                "type": "string",
+                                "description": "汇卖价"
+                              },
+                              "updatetime": {
+                                "type": "string",
+                                "description": "更新时间"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/exchange/convert": {
+      "get": {
+        "operationId": "汇率转换接口",
+        "summary": "汇率转换",
+        "parameters": [
+          {
+            "description": "要换算的单位（所有货币接口中获取，若为空取CNY或USD）",
+            "example": "CNY",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "数量",
+            "example": "10",
+            "in": "query",
+            "name": "amount",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "换算后的单位（所有货币接口中获取，若为空取CNY或USD）",
+            "example": "USD",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "状态码",
+                      "example": "0"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "返回信息",
+                      "example": "ok"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "string",
+                          "description": "源货币代码",
+                          "example": "CNY"
+                        },
+                        "to": {
+                          "type": "string",
+                          "description": "目标货币代码",
+                          "example": "USD"
+                        },
+                        "fromname": {
+                          "type": "string",
+                          "description": "源货币名称",
+                          "example": "人民币"
+                        },
+                        "toname": {
+                          "type": "string",
+                          "description": "目标货币名称",
+                          "example": "美元"
+                        },
+                        "updatetime": {
+                          "type": "string",
+                          "description": "更新时间",
+                          "example": "2015-10-26 16:56:22"
+                        },
+                        "rate": {
+                          "type": "string",
+                          "description": "汇率",
+                          "example": "0.1574"
+                        },
+                        "camount": {
+                          "type": "string",
+                          "description": "计算后的金额",
+                          "example": "1.574"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/exchange/currency": {
+      "get": {
+        "operationId": "所有货币查询接口",
+        "summary": "查询货币名称。",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "0"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "result": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "currency": {
+                            "type": "string",
+                            "example": "USD"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "美元"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/exchange/single": {
+      "get": {
+        "operationId": "单个货币查询接口",
+        "summary": "查询单个货币与其他货币间的汇率及更新时间。",
+        "parameters": [
+          {
+            "description": "货币（所有货币查询接口中获取）",
+            "example": "CNY",
+            "in": "query",
+            "name": "currency",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "0"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "currency": {
+                          "type": "string",
+                          "example": "CNY"
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "人民币"
+                        },
+                        "list": {
+                          "type": "object",
+                          "properties": {
+                            "HKD": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "example": "港币"
+                                },
+                                "rate": {
+                                  "type": "string",
+                                  "example": "1.2198"
+                                },
+                                "updatetime": {
+                                  "type": "string",
+                                  "example": "2015-10-26 16:56:22"
+                                }
+                              }
+                            },
+                            "USD": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "example": "美元"
+                                },
+                                "rate": {
+                                  "type": "string",
+                                  "example": "0.1574"
+                                },
+                                "updatetime": {
+                                  "type": "string",
+                                  "example": "2015-10-26 16:56:22"
+                                }
+                              }
+                            },
+                            "EUR": {
+                              "type": "object",
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "example": "欧元"
+                                },
+                                "rate": {
+                                  "type": "string",
+                                  "example": "0.1426"
+                                },
+                                "updatetime": {
+                                  "type": "string",
+                                  "example": "2015-10-26 16:56:22"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jisuhuilv.market.alicloudapi.com"
+    }
+  ]
+}

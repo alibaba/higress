@@ -1,0 +1,46 @@
+{
+  "rag": {
+    "enabled": true,
+    "provider": "bailian",
+    "endpoint": "bailian.cn-beijing.aliyuncs.com",
+    "workspace_id": "${WORKSPACE_ID}",
+    "knowledge_base_id": "${INDEX_ID}",
+    "access_key_id": "${ALIBABA_CLOUD_ACCESS_KEY_ID}",
+    "access_key_secret": "${ALIBABA_CLOUD_ACCESS_KEY_SECRET}",
+    
+    "context_mode": "full",
+    "max_context_length": 4000,
+    "default_top_k": 3,
+    "similarity_threshold": 0.7,
+    
+    "enable_cache": true,
+    "cache_ttl": 3600,
+    "cache_max_size": 1000,
+    
+    "timeout": 10,
+    "max_retries": 3,
+    "retry_delay": 1,
+    
+    "fallback_on_error": true,
+    
+    "tools": {
+      "generate_conversion_hints": {
+        "use_rag": true,
+        "context_mode": "full",
+        "top_k": 3
+      },
+      "validate_wasm_code": {
+        "use_rag": true,
+        "context_mode": "highlights",
+        "top_k": 2
+      },
+      "convert_lua_to_wasm": {
+        "use_rag": false
+      }
+    },
+    
+    "debug": true,
+    "log_queries": true
+  }
+}
+

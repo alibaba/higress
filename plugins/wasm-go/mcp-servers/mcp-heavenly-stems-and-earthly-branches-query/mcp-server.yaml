@@ -1,0 +1,106 @@
+server:
+  name: heavenly-stems-and-earthly-branches-query
+  config:
+    appCode: ""
+tools:
+  - name: heavenly-stems-and-earthly-branches-query
+    description: 根据年/月/日/时/分钟等，确定天干地支等信息。
+    args:
+      - name: city
+        description: 城市
+        type: string
+        required: true
+        position: query
+      - name: day
+        description: 日
+        type: string
+        required: true
+        position: query
+      - name: hour
+        description: 时
+        type: string
+        required: true
+        position: query
+      - name: islunar
+        description: 是否是阴历 默认0阳历
+        type: string
+        required: true
+        position: query
+      - name: istaiyang
+        description: 是否使用太阳时 默认0不使用
+        type: string
+        required: true
+        position: query
+      - name: minute
+        description: 分
+        type: string
+        required: true
+        position: query
+      - name: month
+        description: 月
+        type: string
+        required: true
+        position: query
+      - name: name
+        description: 姓名
+        type: string
+        required: true
+        position: query
+      - name: sex
+        description: 性别 1男 0女
+        type: string
+        required: true
+        position: query
+      - name: year
+        description: 年
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jisubazi.market.alicloudapi.com/bazi/paipan
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**:  (Type: string)
+        - **result**:  (Type: object)
+          - **result.animal**: 生肖 (Type: string)
+          - **result.bazi**: 天干地支 (Type: array)
+            - **result.bazi[]**: Items of type string
+          - **result.jieqinext**: 跟当前时间临近的下个节气 (Type: object)
+            - **result.jieqinext.date**: 日期 (Type: string)
+            - **result.jieqinext.jieqiname**: 节气名称 (Type: string)
+          - **result.jieqiprev**: 跟当前时间临近的上个节气 (Type: object)
+            - **result.jieqiprev.date**: 日期 (Type: string)
+            - **result.jieqiprev.jieqiname**: 节气名称 (Type: string)
+          - **result.lunarday**: 农历日 (Type: string)
+          - **result.lunarhour**: 农历时 (Type: string)
+          - **result.lunarmonth**: 农历月 (Type: string)
+          - **result.lunaryear**: 农历年 (Type: string)
+          - **result.minggong**: 命宫 (Type: string)
+          - **result.nayin**: 纳音 (Type: array)
+            - **result.nayin[]**: Items of type string
+          - **result.shensha**: 四柱对应的神煞 (Type: array)
+            - **result.shensha[]**: Items of type array
+          - **result.taiyuan**: 胎元 (Type: string)
+          - **result.xunkong**: 四柱对应的旬空 (Type: array)
+            - **result.xunkong[]**: Items of type string
+        - **status**:  (Type: string)
+
+        ## Original Response
+

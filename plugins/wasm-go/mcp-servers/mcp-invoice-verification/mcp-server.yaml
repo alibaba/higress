@@ -1,0 +1,626 @@
+server:
+  name: invoice-verification
+  config:
+    appCode: ""
+tools:
+  - name: blockchain-invoice-verification
+    description: 区块链发票验证
+    args:
+      - name: dq
+        description: 地区 【深圳：4403，北京：1100，云南：5300    默认：4403-深圳】
+        type: string
+        position: body
+      - name: fpdm
+        description: '发票代码 '
+        type: string
+        required: true
+        position: body
+      - name: fphm
+        description: 发票号码
+        type: string
+        required: true
+        position: body
+      - name: jym
+        description: 校验码
+        type: string
+        required: true
+        position: body
+      - name: xfsbh
+        description: 销售方识别号    深圳、云南必填
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jminvoice.market.alicloudapi.com/fpyz/invoice/validate/blockchain
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见code返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.dq**: 地区 (Type: string)
+          - **data.fpdm**: 发票代码 (Type: string)
+          - **data.fphm**: 发票号码 (Type: string)
+          - **data.fplx**: 发票类型 (Type: string)
+          - **data.fpzt**: 发票状态 (Type: string)
+          - **data.gfmc**: 购买方名称 (Type: string)
+          - **data.jshj**: 价税合计 (Type: number)
+          - **data.jym**: 校验码 (Type: string)
+          - **data.kjlx**: 开具类型 (Type: string)
+          - **data.kprq**: 开票日期 (Type: string)
+          - **data.xfmc**: 销售方名称 (Type: string)
+          - **data.xfsbh**: 销售方识别号 (Type: string)
+          - **data.yczt**: 异常状态 (Type: string)
+        - **msg**: code对应的描述 (Type: string)
+        - **taskNo**: 本次唯一请求号 (Type: string)
+
+        ## Original Response
+
+  - name: invoice-download-v2
+    description: 发票下载v2
+    args:
+      - name: fphm
+        description: 发票号码
+        type: string
+        required: true
+        position: body
+      - name: jshj
+        description: 价税合计
+        type: string
+        required: true
+        position: body
+      - name: kprq
+        description: 开票日期
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jminvoice.market.alicloudapi.com/invoice/download-v2
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码，详见返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.fplx**: 发票类型 (Type: string)
+          - **data.jshj**: 价税合计 (Type: number)
+          - **data.kprq**: 开票日期，仅当任务成功时返回精准的时分秒，任务失败仅返回精确到年月日，时分秒都为0 (Type: string)
+          - **data.ofdUrl**: ofd版式文件url (Type: string)
+          - **data.pdfUrl**: pdf版式文件url (Type: string)
+          - **data.qdfphm**: 数电发票号码 (Type: string)
+          - **data.success**: 版式文件下载是否成功 (Type: boolean)
+          - **data.xmlUrl**: xml版式文件url (Type: string)
+        - **msg**: 返回码对应描述 (Type: string)
+        - **taskNo**: 本次请求号 (Type: string)
+
+        ## Original Response
+
+  - name: invoice-validate-v2
+    description: "2"
+    args:
+      - name: fpdm
+        description: 发票代码 非全电发票必填
+        type: string
+        position: body
+      - name: fphm
+        description: 发票号码
+        type: string
+        required: true
+        position: body
+      - name: je
+        description: 增值税专用发票、增值税电子专用发票、机动车销售统一发票输入不含税金额; 二手车销售统一发票输入车价合计； 全电发票输入价税合计
+        type: string
+        position: body
+      - name: jym
+        description: 校验码后 6 位， 增值税普通发票、增值税电子普通发票、增值税普通发票（卷式）、增值税电子普通发票（通行费）必填
+        type: string
+        position: body
+      - name: kprq
+        description: 开票日期 格式YYYYMMDD
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jminvoice.market.alicloudapi.com/invoice/validate/v2
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.bz**: 备注 (Type: string)
+          - **data.dq**: 地区 (Type: string)
+          - **data.fpdm**: 发票代码 (Type: string)
+          - **data.fphm**: 发票号码 (Type: string)
+          - **data.fplx**: 发票类型 (Type: string)
+          - **data.fpztDm**: 发票状态代码 (Type: string)
+          - **data.gfmc**: 购方名称 (Type: string)
+          - **data.gfsbh**: 购方识别号 (Type: string)
+          - **data.gmfdzdh**: 购买方地址电话 (Type: string)
+          - **data.gmfyhzh**: 购买方银行账号 (Type: string)
+          - **data.hwxx**:  (Type: array)
+            - **data.hwxx[].dj**: 单价 (Type: string)
+            - **data.hwxx[].ggxh**: 规格型号 (Type: string)
+            - **data.hwxx[].je**: 金额 (Type: number)
+            - **data.hwxx[].jldw**: 计量单位 (Type: string)
+            - **data.hwxx[].mc**: 名称 (Type: string)
+            - **data.hwxx[].mxxh**: 明细序号 (Type: integer)
+            - **data.hwxx[].se**: 税额 (Type: number)
+            - **data.hwxx[].sl**: 数量 (Type: string)
+            - **data.hwxx[].slv**: 税率 (Type: number)
+            - **data.hwxx[].spbm**: 商品编码 (Type: string)
+            - **data.hwxx[].ysse**: 原始税额 (Type: string)
+            - **data.hwxx[].ysslv**: 原始税率 (Type: string)
+          - **data.je**: 金额 (Type: number)
+          - **data.jshj**: 价税合计 (Type: number)
+          - **data.jshjcn**: 价税合计（中文大写） (Type: string)
+          - **data.jym**: 校验码 (Type: string)
+          - **data.kjlx**: 开具类型 (Type: string)
+          - **data.kprq**: 开票日期 (Type: string)
+          - **data.sbbh**: 设备编号 (Type: string)
+          - **data.se**: 税额 (Type: number)
+          - **data.times**: 查验次数 (Type: integer)
+          - **data.xfmc**: 销方名称 (Type: string)
+          - **data.xfsbh**: 销方识别号 (Type: string)
+          - **data.xhqdBz**: 清单标志 (Type: string)
+          - **data.xsfdzdh**: 销售方地址电话 (Type: string)
+          - **data.xsfyhzh**: 销售方银行账号 (Type: string)
+        - **msg**: 返回信息 (Type: string)
+        - **taskNo**: 本次唯一请求号 (Type: string)
+
+        ## Original Response
+
+  - name: invoice-validate
+    description: ' （1）根据发票代码、发票编码 等验证发票是否合法'
+    args:
+      - name: bhsje
+        description: 不含税金额 【注意：普票可不传，其他发票必填 。全电票请传含税金额，其他发票需传 不含税金额】
+        type: string
+        position: body
+      - name: fpdm
+        description: 发票代码 【注意：全电票可不传，其他必传】
+        type: string
+        position: body
+      - name: fphm
+        description: 发票号码
+        type: string
+        required: true
+        position: body
+      - name: kprq
+        description: 开票日期 格式YYYYMMDD
+        type: string
+        required: true
+        position: body
+      - name: xym
+        description: 校验码 【注意：专票、全电票可不传，其他必填。校验码支持全位和后6位】
+        type: string
+        position: body
+    requestTemplate:
+      url: https://jminvoice.market.alicloudapi.com/invoice/validate
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 200 指接口调用成功，详见code返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.info**:  (Type: object)
+            - **data.info.bandModel**:  (Type: string)
+            - **data.info.blueInvoiceCode**:  (Type: string)
+            - **data.info.blueInvoiceNo**:  (Type: string)
+            - **data.info.businessUnit**:  (Type: string)
+            - **data.info.businessUnitAddress**:  (Type: string)
+            - **data.info.businessUnitBankAndAccount**:  (Type: string)
+            - **data.info.businessUnitPhone**:  (Type: string)
+            - **data.info.businessUnitTaxNo**:  (Type: string)
+            - **data.info.buyerAccount**:  (Type: string)
+            - **data.info.buyerAddressPhone**:  (Type: string)
+            - **data.info.buyerName**:  (Type: string)
+            - **data.info.buyerPhone**:  (Type: string)
+            - **data.info.buyerTaxNo**:  (Type: string)
+            - **data.info.buyerUnitCodeOrIdNo**:  (Type: string)
+            - **data.info.buyerUnitOrIndividual**:  (Type: string)
+            - **data.info.buyerUnitOrIndividualAddress**:  (Type: string)
+            - **data.info.cancellationMark**:  (Type: string)
+            - **data.info.carNumber**:  (Type: string)
+            - **data.info.carPrice**:  (Type: string)
+            - **data.info.carrierName**:  (Type: string)
+            - **data.info.carrierTaxNo**:  (Type: string)
+            - **data.info.certificateOfImport**:  (Type: string)
+            - **data.info.checkCode**:  (Type: string)
+            - **data.info.checkCount**:  (Type: integer)
+            - **data.info.commodityInspectionNo**:  (Type: string)
+            - **data.info.consignorName**:  (Type: string)
+            - **data.info.consignorTaxNo**:  (Type: string)
+            - **data.info.detailList**:  (Type: array)
+              - **data.info.detailList[].detailAmount**:  (Type: string)
+              - **data.info.detailList[].detailNo**:  (Type: string)
+              - **data.info.detailList[].expenseItem**:  (Type: string)
+              - **data.info.detailList[].flbm**:  (Type: string)
+              - **data.info.detailList[].goodsName**:  (Type: string)
+              - **data.info.detailList[].num**:  (Type: string)
+              - **data.info.detailList[].plateNo**:  (Type: string)
+              - **data.info.detailList[].specificationModel**:  (Type: string)
+              - **data.info.detailList[].taxAmount**:  (Type: string)
+              - **data.info.detailList[].taxDetailAmount**:  (Type: string)
+              - **data.info.detailList[].taxRate**:  (Type: string)
+              - **data.info.detailList[].taxUnitPrice**:  (Type: string)
+              - **data.info.detailList[].trafficDateEnd**:  (Type: string)
+              - **data.info.detailList[].trafficDateStart**:  (Type: string)
+              - **data.info.detailList[].type**:  (Type: string)
+              - **data.info.detailList[].unit**:  (Type: string)
+              - **data.info.detailList[].unitPrice**:  (Type: string)
+            - **data.info.draweeName**:  (Type: string)
+            - **data.info.draweeTaxNo**:  (Type: string)
+            - **data.info.drawer**:  (Type: string)
+            - **data.info.engineNo**:  (Type: string)
+            - **data.info.hcbz**:  (Type: string)
+            - **data.info.idNo**:  (Type: string)
+            - **data.info.invoiceAmount**:  (Type: string)
+            - **data.info.invoiceCode**:  (Type: string)
+            - **data.info.invoiceDate**:  (Type: string)
+            - **data.info.invoiceNo**:  (Type: string)
+            - **data.info.invoiceType**:  (Type: string)
+            - **data.info.lemonMarket**:  (Type: string)
+            - **data.info.lemonMarketAddress**:  (Type: string)
+            - **data.info.lemonMarketBankAndAccount**:  (Type: string)
+            - **data.info.lemonMarketPhone**:  (Type: string)
+            - **data.info.lemonMarketTaxNo**:  (Type: string)
+            - **data.info.licensePlate**:  (Type: string)
+            - **data.info.limitedPeopleCount**:  (Type: string)
+            - **data.info.machineNo**:  (Type: string)
+            - **data.info.payee**:  (Type: string)
+            - **data.info.produceArea**:  (Type: string)
+            - **data.info.qdbz**:  (Type: string)
+            - **data.info.qualifiedNo**:  (Type: string)
+            - **data.info.receiveName**:  (Type: string)
+            - **data.info.receiveTaxNo**:  (Type: string)
+            - **data.info.registrationNo**:  (Type: string)
+            - **data.info.remark**:  (Type: string)
+            - **data.info.remark_b64**:  (Type: string)
+            - **data.info.reviewer**:  (Type: string)
+            - **data.info.salerAccount**:  (Type: string)
+            - **data.info.salerAddress**:  (Type: string)
+            - **data.info.salerAddressPhone**:  (Type: string)
+            - **data.info.salerBankAccount**:  (Type: string)
+            - **data.info.salerBankName**:  (Type: string)
+            - **data.info.salerName**:  (Type: string)
+            - **data.info.salerPhone**:  (Type: string)
+            - **data.info.salerTaxNo**:  (Type: string)
+            - **data.info.sellerPhone**:  (Type: string)
+            - **data.info.sellerUnitCodeOrIdNo**:  (Type: string)
+            - **data.info.sellerUnitOrIndividual**:  (Type: string)
+            - **data.info.sellerUnitOrIndividualAddress**:  (Type: string)
+            - **data.info.taxAmount**:  (Type: string)
+            - **data.info.taxAuthorityCode**:  (Type: string)
+            - **data.info.taxAuthorityName**:  (Type: string)
+            - **data.info.taxDiskNumber**:  (Type: string)
+            - **data.info.taxPaymentCertificateNo**:  (Type: string)
+            - **data.info.taxRate**:  (Type: string)
+            - **data.info.throughAddress**:  (Type: string)
+            - **data.info.tonnage**:  (Type: string)
+            - **data.info.totalAmount**:  (Type: string)
+            - **data.info.trafficFeeFlag**:  (Type: string)
+            - **data.info.transferredVehicleOffice**:  (Type: string)
+            - **data.info.transportGoodsInfo**:  (Type: string)
+            - **data.info.vehicleIdentificationNo**:  (Type: string)
+            - **data.info.vehicleTonnage**:  (Type: string)
+            - **data.info.vehicleType**:  (Type: string)
+            - **data.info.zeroTaxRateFlag**:  (Type: string)
+          - **data.message**: result对应的描述 (Type: string)
+          - **data.result**: 1 一致  ； 2 不一致 ； 3  查无此票； (Type: integer)
+        - **msg**: code对应的描述 (Type: string)
+        - **taskNo**: 本次唯一请求号 (Type: string)
+
+        ## Original Response
+
+  - name: invoice-validate-fiscal
+    description: 财政票据验证
+    args:
+      - name: fpdm
+        description: 发票代码
+        type: string
+        required: true
+        position: body
+      - name: fphm
+        description: 发票号码
+        type: string
+        required: true
+        position: body
+      - name: je
+        description: 金额
+        type: string
+        required: true
+        position: body
+      - name: jym
+        description: 校验码
+        type: string
+        required: true
+        position: body
+      - name: kqrq
+        description: 开票日期  【注意：时间格式：yyyy-MM-dd 或 yyyyMMdd】
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jminvoice.market.alicloudapi.com/fpyz/invoice/validate/fiscal
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 200指接口调用成功，详见code返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.ch**: 冲红 (Type: string)
+          - **data.chrq**: 冲红日期 (Type: string)
+          - **data.chsj**: 冲红时间 (Type: string)
+          - **data.chyy**: 冲红原因 (Type: string)
+          - **data.czbmyz**: 财政部门印章 (Type: string)
+          - **data.czbmyzbh**: 财政部门印章编号 (Type: string)
+          - **data.detailUrl**: 税局查验截图url (Type: string)
+          - **data.fhr**: 复核人 (Type: string)
+          - **data.fpdm**: 发票代码 (Type: string)
+          - **data.fphm**: 发票号码 (Type: string)
+          - **data.jehj**: 金额合计 (Type: number)
+          - **data.jehjcn**: 金额合计中文大写 (Type: string)
+          - **data.jkr**: 缴款人 (Type: string)
+          - **data.jkrnsrsbh**: 缴款人纳税识别号 (Type: string)
+          - **data.jym**: 校验码 (Type: string)
+          - **data.kprq**: 开票日期 (Type: string)
+          - **data.pjmc**: 票据名称 (Type: string)
+          - **data.qtxx**:  (Type: array)
+            - **data.qtxx[].cn**: 业务流水号 (Type: string)
+            - **data.qtxx[].en**: 业务流水号 (Type: string)
+            - **data.qtxx[].value**: 业务流水号 (Type: string)
+          - **data.skdw**: 收款单位 (Type: string)
+          - **data.skr**: 收款人 (Type: string)
+          - **data.xmmx**:  (Type: array)
+          - **data.xmqd**:  (Type: array)
+            - **data.xmqd[].bz**: 备注 (Type: string)
+            - **data.xmqd[].dw**: 单位 (Type: string)
+            - **data.xmqd[].ggbz**: 规格标准 (Type: string)
+            - **data.xmqd[].je**: 金额 (Type: number)
+            - **data.xmqd[].sl**: 数量 (Type: string)
+            - **data.xmqd[].xmbh**: 项目编号 (Type: string)
+            - **data.xmqd[].xmmc**: 项目名称 (Type: string)
+            - **data.xmqd[].xmxh**: 项目序号 (Type: integer)
+        - **msg**: code对应的描述 (Type: string)
+        - **taskNo**: 本次唯一请求号 (Type: string)
+
+        ## Original Response
+
+  - name: vehicle-toll-jiangshu
+    description: 车辆通行费发票查验_江苏
+    args:
+      - name: dq
+        description: 地区，江苏：3200
+        type: string
+        required: true
+        position: body
+      - name: fpdm
+        description: 发票代码
+        type: string
+        required: true
+        position: body
+      - name: fphm
+        description: 发票号码
+        type: string
+        required: true
+        position: body
+      - name: gfmc
+        description: 购方名称/抬头名称
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jminvoice.market.alicloudapi.com/invoice/validate/vehicle-toll-jiangshu
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 返回码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.bz**: 备注 (Type: string)
+          - **data.fh**: 复核 (Type: string)
+          - **data.fpdm**: 发票代码 (Type: string)
+          - **data.fphm**: 发票号码 (Type: string)
+          - **data.fplx**: 发票类型代码 (Type: string)
+          - **data.gfmc**: 购方名称 (Type: string)
+          - **data.gfsbh**: 购方识别号 (Type: string)
+          - **data.gmfdzdh**: 购买方地址电话 (Type: string)
+          - **data.gmfyhzh**: 购买方银行账号 (Type: string)
+          - **data.jshj**: 价税合计 (Type: string)
+          - **data.kpr**: 开票人 (Type: string)
+          - **data.kprq**: 开票日期 (Type: string)
+          - **data.skm**: 密码区 (Type: string)
+          - **data.skr**: 收款人 (Type: string)
+          - **data.taxFpUrl**: 税局返回发票文件url (Type: string)
+          - **data.times**: 查验次数 (Type: integer)
+          - **data.xfmc**: 销方名称 (Type: string)
+          - **data.xfsbh**: 销方识别号 (Type: string)
+          - **data.xmmx**: 项目明细 (Type: array)
+            - **data.xmmx[].xmje**: 项目金额 (Type: string)
+            - **data.xmmx[].xmmc**: 项目名称 (Type: string)
+            - **data.xmmx[].xmsl**: 项目数量 (Type: string)
+          - **data.xsfdzdh**: 销售方地址电话 (Type: string)
+          - **data.xsfyhzh**: 销售方银行账号 (Type: string)
+        - **msg**: code对应的描述 (Type: string)
+        - **taskNo**: 本次唯一请求号 (Type: string)
+
+        ## Original Response
+
+  - name: union-electronic-v1
+    description: （3）根据发票代码、发票编码等验证通用发票
+    args:
+      - name: dq
+        description: 地区代码   广东：4400    浙江：3300
+        type: string
+        required: true
+        position: body
+      - name: fpdm
+        description: 发票代码
+        type: string
+        required: true
+        position: body
+      - name: fphm
+        description: 发票号码
+        type: string
+        required: true
+        position: body
+      - name: jshj
+        description: 价税合计
+        type: string
+        required: true
+        position: body
+      - name: kprq
+        description: 开票日期  【注意：时间格式：yyyy-MM-dd 或 yyyyMMdd】
+        type: string
+        required: true
+        position: body
+      - name: xfsbh
+        description: 销方识别号
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://jminvoice.market.alicloudapi.com/invoice/validate/general-electronic-v1
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 200 指接口调用成功，详见code返回码说明 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.dq**: 地区 (Type: string)
+          - **data.fpdm**: 发票代码 (Type: string)
+          - **data.fphm**: 发票号码 (Type: string)
+          - **data.fplbmc**: 发票类别名称 (Type: string)
+          - **data.fplx**: 发票类型 (Type: string)
+          - **data.fpzt**: 发票状态 0正常 2作废 3已红冲 7部分红冲 8全额红冲 (Type: string)
+          - **data.gfmc**: 购方名称 (Type: string)
+          - **data.gfsbh**: 购方识别号 (Type: string)
+          - **data.jshj**: 价税合计 (Type: string)
+          - **data.kjlx**: 开具类型 1自开 2代开 (Type: string)
+          - **data.kprq**: 开票日期 (Type: string)
+          - **data.xfmc**: 销方名称 (Type: string)
+          - **data.xfsbh**: 销方识别号 (Type: string)
+        - **msg**: code对应的描述 (Type: string)
+        - **taskNo**: 本次唯一请求号 (Type: string)
+
+        ## Original Response
+

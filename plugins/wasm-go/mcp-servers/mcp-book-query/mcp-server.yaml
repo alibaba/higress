@@ -1,0 +1,72 @@
+server:
+  name: book-query
+  config:
+    appCode: ""
+tools:
+  - name: isbn-query
+    description: ISBN书号查询
+    args:
+      - name: isbn
+        description: ISBN书号
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://lhisbnshcx.market.alicloudapi.com/isbn/query
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 接口返回码【注意：不等于HTTP响应状态码】 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.details**:  (Type: array)
+            - **data.details[].annotation**: 附注 (Type: string)
+            - **data.details[].author**: 作者、编者、译者信息 (Type: string)
+            - **data.details[].batch**: 丛编信息 (Type: string)
+            - **data.details[].binding**: 装帧信息 (Type: string)
+            - **data.details[].bookCatalog**: 目录 (Type: string)
+            - **data.details[].cipTxt**: cip信息 (Type: string)
+            - **data.details[].edition**: 版次 (Type: string)
+            - **data.details[].format**: 纸张开数 (Type: string)
+            - **data.details[].genus**: 中图分类号 (Type: string)
+            - **data.details[].gist**: 图书内容简介 (Type: string)
+            - **data.details[].heatNum**: 图书热度 (Type: string)
+            - **data.details[].img**: 封面链接【提示：图片链接24小时有效，超过失效不可访问】 (Type: string)
+            - **data.details[].isbn**: 13位isbn号 (Type: string)
+            - **data.details[].isbn10**: 10位isbn号 (Type: string)
+            - **data.details[].keyword**: 图书关键词 (Type: string)
+            - **data.details[].language**: 语言 (Type: string)
+            - **data.details[].levelNum**: 读者评分 (Type: string)
+            - **data.details[].page**: 页数 (Type: string)
+            - **data.details[].paper**: 书籍纸张类型 (Type: string)
+            - **data.details[].price**: 定价 (Type: string)
+            - **data.details[].pubDate**: 出版日期 (Type: string)
+            - **data.details[].pubPlace**: 出版地 (Type: string)
+            - **data.details[].publisher**: 出版社 (Type: string)
+            - **data.details[].series**: 丛书信息，非丛书为空 (Type: string)
+            - **data.details[].subject**: 主题 (Type: string)
+            - **data.details[].title**: 书名 (Type: string)
+            - **data.details[].wordNum**: 字数 (Type: string)
+            - **data.details[].yinci**: 印次 (Type: string)
+        - **msg**: 接口返回码对应的描述信息 (Type: string)
+        - **taskNo**: 任务订单号【可反馈服务商复核对应订单】 (Type: string)
+
+        ## Original Response
+

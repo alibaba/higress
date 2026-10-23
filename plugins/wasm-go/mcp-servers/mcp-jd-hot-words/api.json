@@ -1,0 +1,77 @@
+{
+  "info": {
+    "description": "京东商品关键词搜索排名查询工具，利用本接口，可根据任意商品关键词，全站实时获取，搜索关注度最高的商品关键词，协助商家及时掌握：买家搜索习惯和买家需求。",
+    "title": "京东商品热搜",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/jdgoods": {
+      "get": {
+        "operationId": "京东商品热搜",
+        "summary": "京东商品关键词搜索排名查询工具，利用本接口，可根据任意商品关键词，实时获取搜索关注度最高的商品关键词，协助商家及时掌握：买家搜索习惯和买家需求。",
+        "parameters": [
+          {
+            "description": "商品关键词",
+            "example": "男士洁面乳",
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "example": "男士洁面乳"
+                    },
+                    "goodsList": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "男洁面乳",
+                        "男士洁面乳 3免1",
+                        "男士洁面乳 京东自营",
+                        "男洁面乳套装",
+                        "男洁面乳爽肤水面霜",
+                        "男洁面乳控油",
+                        "男洁面乳进口",
+                        "男洁面乳爽肤水套装",
+                        "男洁面乳科颜氏",
+                        "男士洁面乳 京东自营收缩毛孔控油"
+                      ]
+                    },
+                    "time": {
+                      "type": "string",
+                      "example": "2017-10-15 00:56:52"
+                    },
+                    "status": {
+                      "type": "string",
+                      "example": "01"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jdgoods.market.alicloudapi.com"
+    }
+  ]
+}

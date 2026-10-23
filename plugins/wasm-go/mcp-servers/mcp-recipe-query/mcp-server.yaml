@@ -1,0 +1,217 @@
+server:
+  name: recipe-query
+  config:
+    appCode: ""
+tools:
+  - name: query-byclass
+    description: 万种菜谱，包含主料、辅料，制作流程。可按分类、关键词检索。
+    args:
+      - name: classid
+        description: 分类ID
+        type: integer
+        required: true
+        position: query
+      - name: num
+        description: 获取数量
+        type: integer
+        required: true
+        position: query
+      - name: start
+        description: 起始条数，默认0
+        type: integer
+        position: query
+    requestTemplate:
+      url: http://jsucpdq.market.alicloudapi.com/recipe/byclass
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 响应消息 (Type: string)
+        - **result**:  (Type: object)
+          - **result.list**:  (Type: array)
+            - **result.list[].classid**: 分类ID (Type: string)
+            - **result.list[].content**: 菜品描述 (Type: string)
+            - **result.list[].cookingtime**: 烹饪时间 (Type: string)
+            - **result.list[].id**: ID (Type: string)
+            - **result.list[].material**:  (Type: array)
+              - **result.list[].material[].amount**: 材料用量 (Type: string)
+              - **result.list[].material[].mname**: 材料名称 (Type: string)
+              - **result.list[].material[].type**: 材料类型 (Type: string)
+            - **result.list[].name**: 菜名 (Type: string)
+            - **result.list[].peoplenum**: 适合人数 (Type: string)
+            - **result.list[].pic**: 图片URL (Type: string)
+            - **result.list[].preparetime**: 准备时间 (Type: string)
+            - **result.list[].process**:  (Type: array)
+              - **result.list[].process[].pcontent**: 步骤内容 (Type: string)
+              - **result.list[].process[].pic**: 步骤图片URL (Type: string)
+            - **result.list[].tag**: 标签 (Type: string)
+          - **result.num**: 结果数量 (Type: string)
+        - **status**: 状态码 (Type: integer)
+
+        ## Original Response
+
+  - name: query-byid
+    description: 根据ID查询详情
+    args:
+      - name: id
+        description: 菜谱ID
+        type: integer
+        required: true
+        position: query
+    requestTemplate:
+      url: http://jsucpdq.market.alicloudapi.com/recipe/detail
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 消息 (Type: string)
+        - **result**:  (Type: object)
+          - **result.classid**: 分类ID (Type: string)
+          - **result.content**: 菜品描述 (Type: string)
+          - **result.cookingtime**: 烹饪时间 (Type: string)
+          - **result.id**: 菜谱ID (Type: string)
+          - **result.material**:  (Type: array)
+            - **result.material[].amount**: 材料数量 (Type: string)
+            - **result.material[].mname**: 材料名称 (Type: string)
+            - **result.material[].type**: 材料类型 (Type: string)
+          - **result.name**: 菜名 (Type: string)
+          - **result.peoplenum**: 适合人数 (Type: string)
+          - **result.pic**: 菜品图片URL (Type: string)
+          - **result.preparetime**: 准备时间 (Type: string)
+          - **result.process**:  (Type: array)
+            - **result.process[].pcontent**: 步骤内容 (Type: string)
+            - **result.process[].pic**: 步骤图片URL (Type: string)
+          - **result.tag**: 标签 (Type: string)
+        - **status**: 状态码 (Type: integer)
+
+        ## Original Response
+
+  - name: recipe-class
+    description: 菜谱分类
+    args: []
+    requestTemplate:
+      url: http://jsucpdq.market.alicloudapi.com/recipe/class
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 响应消息 (Type: string)
+        - **result**:  (Type: array)
+          - **result[].classid**: 分类ID (Type: string)
+          - **result[].list**:  (Type: array)
+            - **result[].list[].classid**: 子分类ID (Type: string)
+            - **result[].list[].name**: 子分类名称 (Type: string)
+            - **result[].list[].parentid**: 父分类ID (Type: string)
+          - **result[].name**: 分类名称 (Type: string)
+          - **result[].parentid**: 父分类ID (Type: string)
+        - **status**: 状态码，0表示成功 (Type: integer)
+
+        ## Original Response
+
+  - name: recipe-search
+    description: 菜谱搜索
+    args:
+      - name: keyword
+        description: 关键词
+        type: string
+        required: true
+        position: query
+      - name: num
+        description: 获取数量
+        type: integer
+        required: true
+        position: query
+      - name: start
+        description: 起始条数，默认0
+        type: integer
+        position: query
+    requestTemplate:
+      url: http://jsucpdq.market.alicloudapi.com/recipe/search
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 消息 (Type: string)
+        - **result**:  (Type: object)
+          - **result.list**:  (Type: array)
+            - **result.list[].classid**: 分类ID (Type: string)
+            - **result.list[].content**: 内容 (Type: string)
+            - **result.list[].cookingtime**: 烹饪时间 (Type: string)
+            - **result.list[].id**: ID (Type: string)
+            - **result.list[].material**:  (Type: array)
+              - **result.list[].material[].amount**: 数量 (Type: string)
+              - **result.list[].material[].mname**: 材料名称 (Type: string)
+              - **result.list[].material[].type**: 类型 (Type: string)
+            - **result.list[].name**: 名称 (Type: string)
+            - **result.list[].peoplenum**: 人数 (Type: string)
+            - **result.list[].pic**: 图片URL (Type: string)
+            - **result.list[].preparetime**: 准备时间 (Type: string)
+            - **result.list[].process**:  (Type: array)
+              - **result.list[].process[].pcontent**: 步骤内容 (Type: string)
+              - **result.list[].process[].pic**: 步骤图片URL (Type: string)
+            - **result.list[].tag**: 标签 (Type: string)
+          - **result.num**: 数量 (Type: string)
+        - **status**: 状态码 (Type: integer)
+
+        ## Original Response
+

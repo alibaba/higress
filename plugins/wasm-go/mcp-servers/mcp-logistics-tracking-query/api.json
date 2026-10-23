@@ -1,0 +1,186 @@
+{
+  "info": {
+    "description": "【快递查询api，快递物流自动单号识别】可查询快递物流信息近600+家全国快递查询API，单号自动识别，包括全球快递物流查询接口：顺丰、邮政，极兔，申通、圆通、韵达、中通、百世、EMS、天天、国通、德邦、宅急送等600+家快递物流查询接口，支持物流监控推送",
+    "title": "【快递助手】物流轨迹查询API-全球快递查询-物流更新推送-快递查询接口-快递单号查询-快递实时查询-自动识别单号-轨迹展示",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/logistics/discern": {
+      "post": {
+        "operationId": "单号识别快递公司",
+        "summary": "智能识别单号对应的快递公司",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mailNo": {
+                    "description": "快递单号",
+                    "type": "string",
+                    "example": "YT1223434234"
+                  }
+                },
+                "required": [
+                  "mailNo"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "响应状态码"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "companyName": {
+                            "type": "string",
+                            "description": "快递公司名称",
+                            "example": "圆通快递"
+                          },
+                          "cpCode": {
+                            "type": "string",
+                            "description": "快递公司代码",
+                            "example": "YTO"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/logistics/search": {
+      "post": {
+        "operationId": "物流轨迹查询",
+        "summary": "查询各大快递公司物流轨迹",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cpCode": {
+                    "description": "快递公司编码",
+                    "type": "string",
+                    "example": "YTO"
+                  },
+                  "mailNo": {
+                    "description": "快递单号",
+                    "type": "string",
+                    "example": "YT1020302302"
+                  },
+                  "phone": {
+                    "description": "顺丰、丰网快递需要传收件或寄件人手机号或者手机号后四位",
+                    "type": "string",
+                    "example": "13000000000或者0000"
+                  }
+                },
+                "required": [
+                  "cpCode",
+                  "mailNo"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "example": 100
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "cpCode": {
+                          "type": "string",
+                          "example": "YTO"
+                        },
+                        "logisticsCompanyName": {
+                          "type": "string",
+                          "example": "圆通快递"
+                        },
+                        "logisticsStatus": {
+                          "type": "string",
+                          "example": "SIGN"
+                        },
+                        "logisticsStatusDesc": {
+                          "type": "string",
+                          "example": "已签收"
+                        },
+                        "logisticsTraceDetailList": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "desc": {
+                                "type": "string",
+                                "example": "广东省广州市海珠区滨江中大公司,已揽收"
+                              },
+                              "logisticsStatus": {
+                                "type": "string",
+                                "example": "ACCEPT"
+                              },
+                              "time": {
+                                "type": "integer",
+                                "format": "int64",
+                                "example": 1628158737000
+                              }
+                            }
+                          }
+                        },
+                        "mailNo": {
+                          "type": "string",
+                          "example": "YT9704205606839"
+                        },
+                        "theLastMessage": {
+                          "type": "string",
+                          "example": "山东省菏泽市单县公司,已签收"
+                        },
+                        "theLastTime": {
+                          "type": "string",
+                          "example": "2021-08-08T09:24:40Z"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://kdzsgw.market.alicloudapi.com"
+    }
+  ]
+}

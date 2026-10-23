@@ -1,0 +1,909 @@
+{
+  "info": {
+    "description": "【节假日查询 黄历查询 吉日查询 】接口可查询传统日历、节假日、运势、宜忌等信息，广泛用于日程安排，出行指南，风水评估等。 —— 我们只做精品！",
+    "title": "【聚美智数】黄历查询-日历查询-节假日查询-运势查询-吉凶查询-万年历-阴阳历-国际法定节假日查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/holiday/list": {
+      "post": {
+        "operationId": "节假日列表",
+        "summary": "节假日列表",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "year": {
+                    "description": "需要查询的年份【注意： 默认查当年，非当年日期也返回当年节假日数据，来年数据需等到当年12月份才能查】",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "返回信息"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "description": "一年的节假日数量"
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "begin": {
+                                "type": "string"
+                              },
+                              "end": {
+                                "type": "string"
+                              },
+                              "holiday": {
+                                "type": "string"
+                              },
+                              "holiday_remark": {
+                                "type": "string"
+                              },
+                              "inverse_days": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/luck-tendency/almanac": {
+      "post": {
+        "operationId": "黄历运势_新版_黄历",
+        "summary": "黄历运势_新版_黄历",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "description": "查询的日期 格式为yyyyMMdd",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "date"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "example": 74848319667949360000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "gongli": {
+                          "type": "string",
+                          "description": "公历"
+                        },
+                        "nongli": {
+                          "type": "string",
+                          "description": "农历"
+                        },
+                        "jieri": {
+                          "type": "string",
+                          "description": "节日"
+                        },
+                        "zhiri": {
+                          "type": "string",
+                          "description": "值日"
+                        },
+                        "zhishen": {
+                          "type": "string",
+                          "description": "值神"
+                        },
+                        "yi": {
+                          "type": "string",
+                          "description": "宜"
+                        },
+                        "ji": {
+                          "type": "string",
+                          "description": "忌"
+                        },
+                        "qixiang": {
+                          "type": "string",
+                          "description": "气象"
+                        },
+                        "jieqi24": {
+                          "type": "string",
+                          "description": "当前月包含的24节气"
+                        },
+                        "shengxiao": {
+                          "type": "string",
+                          "description": "生肖"
+                        },
+                        "xingzuo": {
+                          "type": "string",
+                          "description": "星座"
+                        },
+                        "rulueli": {
+                          "type": "string",
+                          "description": "儒略历"
+                        },
+                        "jsyq": {
+                          "type": "string",
+                          "description": "吉神宜趋"
+                        },
+                        "xsyj": {
+                          "type": "string",
+                          "description": "凶神宜忌"
+                        },
+                        "pzbj": {
+                          "type": "string",
+                          "description": "彭祖百忌"
+                        },
+                        "tszf": {
+                          "type": "string",
+                          "description": "胎神占方"
+                        },
+                        "chongsha": {
+                          "type": "string",
+                          "description": "冲煞"
+                        },
+                        "nayin": {
+                          "type": "string",
+                          "description": "纳音"
+                        },
+                        "dizhi": {
+                          "type": "string",
+                          "description": "地支"
+                        },
+                        "ganzhi": {
+                          "type": "string",
+                          "description": "干支"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/luck-tendency/auspicious-demon": {
+      "post": {
+        "operationId": "黄历运势_新版_吉神凶煞",
+        "summary": "黄历运势_新版_吉神凶煞",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "description": "查询的日期 格式为yyyyMMdd",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "date"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "example": "74848319667949359984"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "niansansha": {
+                          "type": "string"
+                        },
+                        "nianqisha": {
+                          "type": "string"
+                        },
+                        "niankongwang": {
+                          "type": "string"
+                        },
+                        "yuezhi": {
+                          "type": "string"
+                        },
+                        "yueling": {
+                          "type": "string"
+                        },
+                        "yuexiang": {
+                          "type": "string"
+                        },
+                        "yuesansha": {
+                          "type": "string"
+                        },
+                        "yueqisha": {
+                          "type": "string"
+                        },
+                        "yuekongwang": {
+                          "type": "string"
+                        },
+                        "risansha": {
+                          "type": "string"
+                        },
+                        "riqisha": {
+                          "type": "string"
+                        },
+                        "rikongwang": {
+                          "type": "string"
+                        },
+                        "tjjs": {
+                          "type": "string"
+                        },
+                        "taisuiwei": {
+                          "type": "string"
+                        },
+                        "fantaisui": {
+                          "type": "string"
+                        },
+                        "esbx": {
+                          "type": "string"
+                        },
+                        "jiuxing": {
+                          "type": "string"
+                        },
+                        "rilu": {
+                          "type": "string"
+                        },
+                        "zhongdong": {
+                          "type": "string"
+                        },
+                        "suipowei": {
+                          "type": "string"
+                        },
+                        "niantaisui": {
+                          "type": "string"
+                        },
+                        "caishen": {
+                          "type": "string"
+                        },
+                        "xishen": {
+                          "type": "string"
+                        },
+                        "yangguishen": {
+                          "type": "string"
+                        },
+                        "yinguishen": {
+                          "type": "string"
+                        },
+                        "fushen": {
+                          "type": "string"
+                        },
+                        "yjgx": {
+                          "type": "string"
+                        },
+                        "wuhou": {
+                          "type": "string"
+                        },
+                        "zhishn12": {
+                          "type": "string"
+                        },
+                        "zhiri12": {
+                          "type": "string"
+                        },
+                        "liuyao": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/luck-tendency/auspicious-time": {
+      "post": {
+        "operationId": "黄历运势_新版_吉时",
+        "summary": "黄历运势_新版_吉时",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "description": "查询的日期 格式为yyyyMMdd",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "date"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "example": 74848319667949360000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "zi": {
+                          "type": "object",
+                          "properties": {
+                            "shijian": {
+                              "type": "string",
+                              "example": "23:00:00-0:59:59"
+                            },
+                            "jixiong": {
+                              "type": "string",
+                              "example": "司命(吉)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "司命天乙贵人"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "日刑"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲马"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "甲子"
+                            }
+                          }
+                        },
+                        "hai": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "玄武(凶)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "无"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "21:00:00-22:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "玄武"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲蛇"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "乙亥"
+                            }
+                          }
+                        },
+                        "wei": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "天德(吉)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "天德福星贵人"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "13:00:00-14:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "无"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲牛"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "辛未"
+                            }
+                          }
+                        },
+                        "cheng": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "天刑(凶)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "无"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "7:00:00-8:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "天刑日害"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲狗"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "戊辰"
+                            }
+                          }
+                        },
+                        "you": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "玉堂(吉)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "玉堂文昌贵人"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "17:00:00-18:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "日破"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲兔"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "癸酉"
+                            }
+                          }
+                        },
+                        "wu": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "金匮(吉)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "金匮日禄"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "11:00:00-12:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "无"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲鼠"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "庚午"
+                            }
+                          }
+                        },
+                        "si": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "朱雀(凶)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "日马"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "9:00:00-10:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "朱雀"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲猪"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "己巳"
+                            }
+                          }
+                        },
+                        "xu": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "天牢(凶)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "日合"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "19:00:00-20:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "天牢"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲龙"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "甲戌"
+                            }
+                          }
+                        },
+                        "chou": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "勾陈(凶)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "无"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "1:00:00-2:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "勾陈"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲羊"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "乙丑"
+                            }
+                          }
+                        },
+                        "yin": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "青龙(吉)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "青龙喜神天官贵人"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "3:00:00-4:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "无"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲猴"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "丙寅"
+                            }
+                          }
+                        },
+                        "shen": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "白虎(凶)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "天乙贵人"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "15:00:00-16:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "白虎"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲虎"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "壬申"
+                            }
+                          }
+                        },
+                        "mao": {
+                          "type": "object",
+                          "properties": {
+                            "jixiong": {
+                              "type": "string",
+                              "example": "明堂(吉)"
+                            },
+                            "jishen": {
+                              "type": "string",
+                              "example": "明堂"
+                            },
+                            "shijian": {
+                              "type": "string",
+                              "example": "5:00:00-6:59:59"
+                            },
+                            "xiongshen": {
+                              "type": "string",
+                              "example": "无"
+                            },
+                            "shichong": {
+                              "type": "string",
+                              "example": "冲鸡"
+                            },
+                            "shizhu": {
+                              "type": "string",
+                              "example": "丁卯"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/holiday/detail": {
+      "post": {
+        "operationId": "节假日详情",
+        "summary": "节假日详情",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "date": {
+                    "description": "查询的日期，默认当天",
+                    "type": "string"
+                  },
+                  "needDesc": {
+                    "description": "是否需要返回当日公众日、国际日和我国传统节日的简介，1-返回，默认不返回",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "返回消息"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "day": {
+                          "type": "string",
+                          "description": "查询的日期"
+                        },
+                        "holiday": {
+                          "type": "string",
+                          "description": "节日名称"
+                        },
+                        "type": {
+                          "type": "string",
+                          "description": "日期类型"
+                        },
+                        "begin": {
+                          "type": "string",
+                          "description": "节日或周末开始时间"
+                        },
+                        "end": {
+                          "type": "string",
+                          "description": "节日或周末结束时间"
+                        },
+                        "holiday_remark": {
+                          "type": "string",
+                          "description": "节日备注"
+                        },
+                        "weekDay": {
+                          "type": "integer",
+                          "description": "星期几的数字"
+                        },
+                        "cn": {
+                          "type": "string",
+                          "description": "星期几的中文名"
+                        },
+                        "en": {
+                          "type": "string",
+                          "description": "星期几的英文名"
+                        },
+                        "h": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "节日名称"
+                              },
+                              "genus": {
+                                "type": "string",
+                                "description": "节日种类"
+                              },
+                              "day": {
+                                "type": "string",
+                                "description": "节日公历日期"
+                              },
+                              "lunaDay": {
+                                "type": "string"
+                              },
+                              "info": {
+                                "type": "string"
+                              },
+                              "origin": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jmhlysjjr.market.alicloudapi.com"
+    }
+  ]
+}

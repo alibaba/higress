@@ -1,0 +1,434 @@
+server:
+  name: notion-api-server
+  config:
+    token: ""
+tools:
+- name: getUser
+  description: "获取指定用户信息"
+  args:
+  - name: user_id
+    description: "用户UUID"
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://api.notion.com/v1/users/{{.args.user_id}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ### 用户信息
+      - **ID**: {{.id}}
+      - **类型**: {{.type}}
+      - **名称**: {{.name}}
+      {{- if eq .type "person"}}
+      - **邮箱**: {{.person.email}}
+      {{- end}}
+      - **头像**: [链接]({{.avatar_url}})
+
+- name: listUsers
+  description: "分页列出所有用户"
+  args:
+  - name: start_cursor
+    description: "分页起始游标"
+    type: string
+    required: false
+  - name: page_size
+    description: "每页数量(默认100)"
+    type: integer
+    required: false
+    default: 100
+  requestTemplate:
+    url: "https://api.notion.com/v1/users"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      用户列表(共{{len .results}}项)
+      {{- range .results}}
+      ### {{.name}}
+      - 类型: {{.type}}
+      - 最后编辑时间: {{.last_edited_time}}
+      {{- end}}
+
+- name: getCurrentUser
+  description: "获取当前认证用户信息"
+  requestTemplate:
+    url: "https://api.notion.com/v1/users/me"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 当前用户
+      - **身份类型**: {{.type}}
+      {{- if .bot}}
+      - **所属者**: {{.bot.owner.user.name}} ({{.bot.owner.user.person.email}})
+      {{- end}}
+
+- name: queryDatabase
+  description: "查询数据库"
+  args:
+  - name: database_id
+    type: string
+    required: true
+  - name: filter_properties
+    type: array
+    items:
+      type: string
+  requestTemplate:
+    url: "https://api.notion.com/v1/databases/{{.args.database_id}}/query"
+    method: POST
+    body: |
+      {
+        "filter": {{toJson .args.filter}},
+        "sorts": {{toJson .args.sorts}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 查询结果
+      {{- range .results}}
+      ### {{.properties.Name.title.plain_text}}
+      - 创建时间: {{.created_time}}
+      - 最后编辑时间: {{.last_edited_time}}
+      {{- end}}
+
+- name: search
+  description: "搜索页面和数据库"
+  args:
+  - name: query
+    type: string
+    required: false
+  - name: sort
+    type: object
+    properties:
+      direction:
+        type: string
+      timestamp:
+        type: string
+  requestTemplate:
+    url: "https://api.notion.com/v1/search"
+    method: POST
+    body: |
+      {
+        "query": "{{.args.query}}",
+        "sort": {{toJson .args.sort}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 搜索结果
+      {{- range .results}}
+      ### {{.title.plain_text}}
+      - 类型: {{.object}}
+      - 最后编辑时间: {{.last_edited_time}}
+      {{- end}}
+
+- name: getBlock
+  description: "获取指定块信息"
+  args:
+  - name: block_id
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://api.notion.com/v1/blocks/{{.args.block_id}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 块信息
+      - 类型: {{.type}}
+      - 创建时间: {{.created_time}}
+      - 最后编辑时间: {{.last_edited_time}}
+
+- name: updateBlock
+  description: "更新块内容"
+  args:
+  - name: block_id
+    type: string
+    required: true
+  - name: type
+    type: object
+    properties: {}
+  - name: archived
+    type: boolean
+    default: true
+  requestTemplate:
+    url: "https://api.notion.com/v1/blocks/{{.args.block_id}}"
+    method: PATCH
+    body: |
+      {
+        "type": {{toJson .args.type}},
+        "archived": {{.args.archived}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 更新结果
+      - 状态: 成功
+      - 块ID: {{.id}}
+
+- name: deleteBlock
+  description: "删除指定块"
+  args:
+  - name: block_id
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://api.notion.com/v1/blocks/{{.args.block_id}}"
+    method: DELETE
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 删除结果
+      - 状态: 成功
+      - 块ID: {{.args.block_id}}
+
+- name: getPage
+  description: "获取指定页面信息"
+  args:
+  - name: page_id
+    type: string
+    required: true
+  - name: filter_properties
+    type: string
+    required: false
+  requestTemplate:
+    url: "https://api.notion.com/v1/pages/{{.args.page_id}}"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 页面信息
+      - 标题: {{.properties.title.title.plain_text}}
+      - 创建时间: {{.created_time}}
+      - 最后编辑时间: {{.last_edited_time}}
+
+- name: updatePage
+  description: "更新页面属性"
+  args:
+  - name: page_id
+    type: string
+    required: true
+  - name: properties
+    type: object
+    properties: {}
+  - name: in_trash
+    type: boolean
+    default: false
+  requestTemplate:
+    url: "https://api.notion.com/v1/pages/{{.args.page_id}}"
+    method: PATCH
+    body: |
+      {
+        "properties": {{toJson .args.properties}},
+        "in_trash": {{.args.in_trash}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 更新结果
+      - 状态: 成功
+      - 页面ID: {{.id}}
+
+- name: createDatabase
+  description: "创建新数据库"
+  args:
+  - name: parent
+    type: object
+    properties:
+      page_id:
+        type: string
+    required: true
+  - name: properties
+    type: object
+    properties: {}
+    required: true
+  requestTemplate:
+    url: "https://api.notion.com/v1/databases"
+    method: POST
+    body: |
+      {
+        "parent": {{toJson .args.parent}},
+        "properties": {{toJson .args.properties}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 创建结果
+      - 数据库ID: {{.id}}
+      - 标题: {{.title.plain_text}}
+      - 创建时间: {{.created_time}}
+
+- name: updateDatabase
+  description: "更新数据库"
+  args:
+  - name: database_id
+    type: string
+    required: true
+  - name: title
+    type: array
+    items:
+      type: object
+      properties:
+        text:
+          type: object
+          properties:
+            content:
+              type: string
+  requestTemplate:
+    url: "https://api.notion.com/v1/databases/{{.args.database_id}}"
+    method: PATCH
+    body: |
+      {
+        "title": {{toJson .args.title}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 更新结果
+      - 数据库ID: {{.id}}
+      - 新标题: {{.title.plain_text}}
+
+- name: getDatabase
+  description: "获取数据库信息"
+  args:
+  - name: database_id
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://api.notion.com/v1/databases/{{.args.database_id}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 数据库信息
+      - 标题: {{.title.plain_text}}
+      - 创建时间: {{.created_time}}
+      - 最后编辑时间: {{.last_edited_time}}
+      - 属性数量: {{len .properties}}
+
+- name: getPageProperty
+  description: "获取页面属性项"
+  args:
+  - name: page_id
+    type: string
+    required: true
+  - name: property_id
+    type: string
+    required: true
+  - name: page_size
+    type: integer
+    required: false
+  - name: start_cursor
+    type: string
+    required: false
+  requestTemplate:
+    url: "https://api.notion.com/v1/pages/{{.args.page_id}}/properties/{{.args.property_id}}"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 属性项
+      {{- range .results}}
+      - 类型: {{.type}}
+      - 值: {{.value}}
+      {{- end}}
+
+- name: createComment
+  description: "创建评论"
+  args:
+  - name: parent
+    type: object
+    properties:
+      page_id:
+        type: string
+    required: true
+  - name: rich_text
+    type: array
+    items:
+      type: object
+      properties:
+        text:
+          type: object
+          properties:
+            content:
+              type: string
+    required: true
+  requestTemplate:
+    url: "https://api.notion.com/v1/comments"
+    method: POST
+    body: |
+      {
+        "parent": {{toJson .args.parent}},
+        "rich_text": {{toJson .args.rich_text}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.token}}"
+    - key: Notion-Version
+      value: 2022-06-28
+  responseTemplate:
+    body: |
+      ## 评论创建结果
+      - 评论ID: {{.id}}
+      - 创建时间: {{.created_time}}
+      - 内容: {{.rich_text.text.content}}

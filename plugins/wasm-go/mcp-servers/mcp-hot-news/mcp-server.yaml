@@ -1,0 +1,136 @@
+server:
+  name: hot-news
+  config:
+    appCode: ""
+tools:
+  - name: search-news
+    description: 查询新闻接口，获取关键词、数量、标题、时间等信息。
+    args:
+      - name: keyword
+        description: 关键词
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://jisunews.market.alicloudapi.com/news/search
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**:  (Type: string)
+        - **result**:  (Type: object)
+          - **result.keyword**:  (Type: string)
+          - **result.list**:  (Type: array)
+            - **result.list[].category**:  (Type: string)
+            - **result.list[].content**:  (Type: string)
+            - **result.list[].pic**:  (Type: string)
+            - **result.list[].src**:  (Type: string)
+            - **result.list[].time**:  (Type: string)
+            - **result.list[].title**:  (Type: string)
+            - **result.list[].url**:  (Type: string)
+            - **result.list[].weburl**:  (Type: string)
+          - **result.num**:  (Type: string)
+        - **status**:  (Type: string)
+
+        ## Original Response
+
+  - name: get-news
+    description: 通过新闻接口，获取频道、数量、标题、时间等信息
+    args:
+      - name: channel
+        description: 频道
+        type: string
+        required: true
+        position: query
+      - name: num
+        description: 数量 默认10，最大40
+        type: integer
+        position: query
+      - name: start
+        description: 起始位置，默认0
+        type: integer
+        position: query
+    requestTemplate:
+      url: https://jisunews.market.alicloudapi.com/news/get
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 消息 (Type: string)
+        - **result**:  (Type: object)
+          - **result.channel**: 频道名称 (Type: string)
+          - **result.list**:  (Type: array)
+            - **result.list[].category**: 分类 (Type: string)
+            - **result.list[].content**: 新闻内容 (Type: string)
+            - **result.list[].pic**: 图片链接 (Type: string)
+            - **result.list[].src**: 新闻来源 (Type: string)
+            - **result.list[].time**: 发布时间 (Type: string)
+            - **result.list[].title**: 新闻标题 (Type: string)
+            - **result.list[].url**: 移动端新闻链接 (Type: string)
+            - **result.list[].weburl**: PC端新闻链接 (Type: string)
+          - **result.num**: 列表项数量 (Type: string)
+        - **status**: 状态码 (Type: string)
+
+        ## Original Response
+
+  - name: get-channel
+    description: 通过查询获取新闻频道等信息。
+    args: []
+    requestTemplate:
+      url: https://jisunews.market.alicloudapi.com/news/channel
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **msg**: 消息描述 (Type: string)
+        - **result**: 分类列表 (Type: array)
+          - **result[]**: Items of type string
+        - **status**: 状态码，0表示成功 (Type: string)
+
+        ## Original Response
+

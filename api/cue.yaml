@@ -1,0 +1,20 @@
+# Cuelang configuration to generate OpenAPI schema for Higress configs.
+
+module: github.com/alibaba/higress/v2/api
+
+openapi:
+  selfContained: true
+  fieldFilter: "min.*|max.*"
+
+directories:
+  networking/v1:
+    - mode: perFile
+  extensions/v1alpha1:
+    - mode: perFile
+
+# All is used when generating all types referenced in the above directories to
+# one file.
+all:
+  title: All Higress types.
+  version: v1alpha1
+  oapiFilename: higress.gen.json

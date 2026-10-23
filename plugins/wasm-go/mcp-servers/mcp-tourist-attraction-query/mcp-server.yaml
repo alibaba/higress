@@ -1,0 +1,65 @@
+server:
+  name: tourist-attraction-query
+  config:
+    appCode: ""
+tools:
+  - name: toursist-attraction-query
+    description: 通过，地区，景点名称等关键字查询景点信息，包括简介，地址，坐标，景点类型，级别，建议游玩时间，电话，网站，开放时间，门票价格等信息
+    args:
+      - name: city
+        description: 市
+        type: string
+        position: query
+      - name: page
+        description: 第几页
+        type: string
+        position: query
+      - name: province
+        description: 省
+        type: string
+        position: query
+      - name: spot
+        description: 景点名称
+        type: string
+        position: query
+    requestTemplate:
+      url: https://scenicspot.market.alicloudapi.com/lianzhuo/scenicspot
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **data**:  (Type: object)
+          - **data.record**:  (Type: array)
+            - **data.record[].addr**: 地址 (Type: string)
+            - **data.record[].grade**: 景点等级 (Type: string)
+            - **data.record[].lat**: 纬度 (Type: string)
+            - **data.record[].lng**: 经度 (Type: string)
+            - **data.record[].opentime**: 开放时间 (Type: string)
+            - **data.record[].spot**: 景点名称 (Type: string)
+            - **data.record[].tel**: 联系电话 (Type: string)
+            - **data.record[].type**: 景点类型 (Type: string)
+            - **data.record[].url**: 官方网站 (Type: string)
+            - **data.record[].visittime**: 推荐游览时间 (Type: string)
+          - **data.totalcount**: 总记录数 (Type: string)
+          - **data.totalpage**: 总页数 (Type: string)
+        - **resp**:  (Type: object)
+          - **resp.RespCode**: 响应代码 (Type: string)
+          - **resp.RespMsg**: 响应信息 (Type: string)
+
+        ## Original Response
+

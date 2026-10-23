@@ -1,0 +1,61 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-quota
+  namespace: higress-system
+spec:
+  defaultConfig: {}
+  defaultConfigDisable: true
+  matchRules:
+  - config:
+      redis_key_prefix: "chat_quota:"
+      admin_consumer: consumer3
+      admin_path: /quota
+      redis:
+        service_name: redis-service.default.svc.cluster.local
+        service_port: 6379
+        timeout: 2000
+    configDisable: false
+    ingress:
+    - qwen
+  phase: UNSPECIFIED_PHASE
+  priority: 280
+  url: oci://registry.cn-hangzhou.aliyuncs.com/2456868764/ai-quota:1.0.8
+
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-statistics
+  namespace: higress-system
+spec:
+  defaultConfig:
+    enable: true
+  defaultConfigDisable: false
+  phase: UNSPECIFIED_PHASE
+  priority: 250
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/ai-statistics:1.0.0
+
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: wasm-keyauth
+  namespace: higress-system
+spec:
+  defaultConfig:
+    consumers:
+      - credential: "Bearer credential1"
+        name: consumer1
+      - credential: "Bearer credential2"
+        name: consumer2
+      - credential: "Bearer credential3"
+        name: consumer3
+    global_auth: true
+    keys:
+      - authorization
+    in_header: true
+  defaultConfigDisable: false
+  priority: 300
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/key-auth:1.0.0
+  imagePullPolicy: Always

@@ -1,0 +1,50 @@
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: traffic-tag
+  namespace: higress-system
+spec:
+  defaultConfig:
+    conditionGroups:
+      - headerName: x-mse-tag-1
+        headerValue: gray
+        logic: or
+        conditions:
+          - conditionType: header
+            key: x-user-type
+            operator: prefix
+            value:
+              - test
+      - headerName: x-mse-tag-2
+        headerValue: blue
+        logic: and
+        conditions:
+          - conditionType: header
+            key: x-type
+            operator: in
+            value:
+              - type1
+              - type2
+              - type3
+          - conditionType: header
+            key: x-mod
+            operator: regex
+            value:
+              - "^[a-zA-Z0-9]{8}$"
+      - headerName: x-mse-tag-3
+        headerValue: green
+        logic: and
+        conditions:
+          - conditionType: header
+            key: user_id
+            operator: percentage
+            value:
+              - 60
+    weightGroups:
+      - headerName: x-higress-canary
+        headerValue: gray
+        weight: 30
+      - headerName: x-higress-canary
+        headerValue: base
+        weight: 70
+  url: file:///opt/plugins/wasm-go/extensions/traffic-tag/plugin.wasm

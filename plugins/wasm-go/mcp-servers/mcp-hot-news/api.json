@@ -1,0 +1,254 @@
+{
+  "info": {
+    "description": "包含头条、新闻、财经、体育、娱乐、军事、教育、科技、NBA、股票、星座、女性、育儿等频道，20分钟一更新，图片均为源链接，此接口仅用于内部数据分析和机器学习，不得用于终端展示。有关版权问题，请与发布方联系获取授权。",
+    "title": "【极速数据】新闻API_头条新闻_热门头条新闻查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/news/channel": {
+      "get": {
+        "operationId": "获取新闻频道接口",
+        "summary": "通过查询获取新闻频道等信息。",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "状态码，0表示成功"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "消息描述"
+                    },
+                    "result": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "分类列表"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/news/get": {
+      "get": {
+        "operationId": "获取新闻接口",
+        "summary": "通过新闻接口，获取频道、数量、标题、时间等信息",
+        "parameters": [
+          {
+            "description": "频道",
+            "example": "头条",
+            "in": "query",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "数量 默认10，最大40",
+            "example": "10",
+            "in": "query",
+            "name": "num",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "起始位置，默认0",
+            "example": "0",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "状态码"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "消息"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "channel": {
+                          "type": "string",
+                          "description": "频道名称"
+                        },
+                        "num": {
+                          "type": "string",
+                          "description": "列表项数量"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string",
+                                "description": "新闻标题"
+                              },
+                              "time": {
+                                "type": "string",
+                                "description": "发布时间"
+                              },
+                              "src": {
+                                "type": "string",
+                                "description": "新闻来源"
+                              },
+                              "category": {
+                                "type": "string",
+                                "description": "分类"
+                              },
+                              "pic": {
+                                "type": "string",
+                                "description": "图片链接"
+                              },
+                              "content": {
+                                "type": "string",
+                                "description": "新闻内容"
+                              },
+                              "url": {
+                                "type": "string",
+                                "description": "移动端新闻链接"
+                              },
+                              "weburl": {
+                                "type": "string",
+                                "description": "PC端新闻链接"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/news/search": {
+      "get": {
+        "operationId": "搜索新闻接口",
+        "summary": "查询新闻接口，获取关键词、数量、标题、时间等信息。",
+        "parameters": [
+          {
+            "description": "关键词",
+            "example": "姚明",
+            "in": "query",
+            "name": "keyword",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "0"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "keyword": {
+                          "type": "string",
+                          "example": "姚明"
+                        },
+                        "num": {
+                          "type": "string",
+                          "example": "9"
+                        },
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string",
+                                "example": "姚明:篮球改革比足球基础好 像电视剧一样播比赛"
+                              },
+                              "time": {
+                                "type": "string",
+                                "example": "2016-03-16T09:59:06Z"
+                              },
+                              "src": {
+                                "type": "string",
+                                "example": "网易"
+                              },
+                              "category": {
+                                "type": "string"
+                              },
+                              "pic": {
+                                "type": "string",
+                                "example": "http://api.jisuapi.com/news/upload/20160316/104634_55612.jpg"
+                              },
+                              "url": {
+                                "type": "string",
+                                "example": "http://m.news.so.com/transcode?ofmt=html&src=srp&q=%E5%A7%9A%E6%98%8E&pn=1&pos=1&m=20bf33d00f8db460ecacb72229acbd11f3d238e1&u=http%3A%2F%2Fsports.163.com%2F16%2F0316%2F09%2FBI96O41V00052UUC.html"
+                              },
+                              "weburl": {
+                                "type": "string",
+                                "example": "http://sports.163.com/16/0316/09/BI96O41V00052UUC.html"
+                              },
+                              "content": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jisunews.market.alicloudapi.com"
+    }
+  ]
+}

@@ -1,0 +1,191 @@
+{
+  "info": {
+    "description": "【感受科技的温度】ISBN标准书号查询-ISBN书号查询-ISBN图书查询-ISBN图书详情信息查询-图书编号查询 —— 输入ISBN书号查询图书详情信息，返回包含书名、作者、出版社、价格、出版日期、印次、装帧方式、语种、摘要等详细图书信息。【怜花数科】",
+    "title": "ISBN标准书号查询-ISBN书号查询-ISBN图书查询-ISBN图书详情信息查询-图书编号查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/isbn/query": {
+      "post": {
+        "operationId": "ISBN书号查询",
+        "summary": "ISBN书号查询",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "isbn": {
+                    "description": "ISBN书号",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "isbn"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "integer",
+                      "description": "接口返回码【注意：不等于HTTP响应状态码】"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "接口返回码对应的描述信息"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "任务订单号【可反馈服务商复核对应订单】"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "details": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "title": {
+                                "type": "string",
+                                "description": "书名"
+                              },
+                              "author": {
+                                "type": "string",
+                                "description": "作者、编者、译者信息"
+                              },
+                              "publisher": {
+                                "type": "string",
+                                "description": "出版社"
+                              },
+                              "pubDate": {
+                                "type": "string",
+                                "description": "出版日期"
+                              },
+                              "pubPlace": {
+                                "type": "string",
+                                "description": "出版地"
+                              },
+                              "isbn": {
+                                "type": "string",
+                                "description": "13位isbn号"
+                              },
+                              "isbn10": {
+                                "type": "string",
+                                "description": "10位isbn号"
+                              },
+                              "price": {
+                                "type": "string",
+                                "description": "定价"
+                              },
+                              "genus": {
+                                "type": "string",
+                                "description": "中图分类号"
+                              },
+                              "levelNum": {
+                                "type": "string",
+                                "description": "读者评分"
+                              },
+                              "heatNum": {
+                                "type": "string",
+                                "description": "图书热度"
+                              },
+                              "format": {
+                                "type": "string",
+                                "description": "纸张开数"
+                              },
+                              "binding": {
+                                "type": "string",
+                                "description": "装帧信息"
+                              },
+                              "page": {
+                                "type": "string",
+                                "description": "页数"
+                              },
+                              "wordNum": {
+                                "type": "string",
+                                "description": "字数"
+                              },
+                              "edition": {
+                                "type": "string",
+                                "description": "版次"
+                              },
+                              "yinci": {
+                                "type": "string",
+                                "description": "印次"
+                              },
+                              "paper": {
+                                "type": "string",
+                                "description": "书籍纸张类型"
+                              },
+                              "language": {
+                                "type": "string",
+                                "description": "语言"
+                              },
+                              "keyword": {
+                                "type": "string",
+                                "description": "图书关键词"
+                              },
+                              "img": {
+                                "type": "string",
+                                "description": "封面链接【提示：图片链接24小时有效，超过失效不可访问】"
+                              },
+                              "bookCatalog": {
+                                "type": "string",
+                                "description": "目录"
+                              },
+                              "gist": {
+                                "type": "string",
+                                "description": "图书内容简介"
+                              },
+                              "cipTxt": {
+                                "type": "string",
+                                "description": "cip信息"
+                              },
+                              "annotation": {
+                                "type": "string",
+                                "description": "附注"
+                              },
+                              "subject": {
+                                "type": "string",
+                                "description": "主题"
+                              },
+                              "series": {
+                                "type": "string",
+                                "description": "丛书信息，非丛书为空"
+                              },
+                              "batch": {
+                                "type": "string",
+                                "description": "丛编信息"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://lhisbnshcx.market.alicloudapi.com"
+    }
+  ]
+}

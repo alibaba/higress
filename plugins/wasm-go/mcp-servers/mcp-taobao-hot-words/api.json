@@ -1,0 +1,82 @@
+{
+  "info": {
+    "description": "淘宝站内搜索关键词排名查询工具。对淘宝全站所有搜索商品关键词，根据用户实时搜索频度处理，协助商家全面掌控搜索关键词近期的市场排名，分布特征等。可根据用户输入的关键词 ，实时查询该词在全站的搜索排名。",
+    "title": "淘宝热词",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/tbhot10": {
+      "get": {
+        "operationId": "淘宝热词",
+        "summary": "淘宝站内搜索关键词排名查询工具。对淘宝全站所有搜索关键词，根据用户实时搜索频度进行处理，协助商家全面掌控搜索关键词近期的市场排名，分布特征等。可根据用户输入的关键词 ，查询出该关键词在全站的搜索排名以及和该关键词在全站关联度最高的 TOP 10 关键词，按降序排列输出。",
+        "parameters": [
+          {
+            "description": "关键词",
+            "example": "薰衣草",
+            "in": "query",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "key": {
+                      "description": "查询关键字",
+                      "example": "薰衣草",
+                      "type": "string"
+                    },
+                    "goodsList": {
+                      "description": "商品列表",
+                      "example": [
+                        "薰衣草精油",
+                        "薰衣草干花",
+                        "薰衣草香包",
+                        "薰衣草纯露",
+                        "薰衣草盆栽",
+                        "薰衣草枕头",
+                        "薰衣草洗衣液",
+                        "薰衣草小熊",
+                        "薰衣草香水",
+                        "薰衣草沐浴露"
+                      ],
+                      "items": {
+                        "description": "商品名称",
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "time": {
+                      "description": "响应时间",
+                      "example": 1508190904000,
+                      "type": "string"
+                    },
+                    "status": {
+                      "description": "状态码",
+                      "example": "01",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://tbhot.market.alicloudapi.com"
+    }
+  ]
+}

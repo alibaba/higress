@@ -1,0 +1,53 @@
+diff --git a/util/mutex.h b/util/mutex.h
+index e2a8715..4031804 100644
+--- a/util/mutex.h
++++ b/util/mutex.h
+@@ -28,10 +28,10 @@
+ #if defined(MUTEX_IS_WIN32_SRWLOCK)
+ #include <windows.h>
+ typedef SRWLOCK MutexType;
+-#elif defined(MUTEX_IS_PTHREAD_RWLOCK)
+-#include <pthread.h>
+-#include <stdlib.h>
+-typedef pthread_rwlock_t MutexType;
++// #elif defined(MUTEX_IS_PTHREAD_RWLOCK)
++// #include <pthread.h>
++// #include <stdlib.h>
++// typedef pthread_rwlock_t MutexType;
+ #else
+ #include <mutex>
+ typedef std::mutex MutexType;
+@@ -73,21 +73,21 @@ void Mutex::Unlock()       { ReleaseSRWLockExclusive(&mutex_); }
+ void Mutex::ReaderLock()   { AcquireSRWLockShared(&mutex_); }
+ void Mutex::ReaderUnlock() { ReleaseSRWLockShared(&mutex_); }
+ 
+-#elif defined(MUTEX_IS_PTHREAD_RWLOCK)
++// #elif defined(MUTEX_IS_PTHREAD_RWLOCK)
+ 
+-#define SAFE_PTHREAD(fncall)    \
+-  do {                          \
+-    if ((fncall) != 0) abort(); \
+-  } while (0)
++// #define SAFE_PTHREAD(fncall)    \
++//   do {                          \
++//     if ((fncall) != 0) abort(); \
++//   } while (0)
+ 
+-Mutex::Mutex()             { SAFE_PTHREAD(pthread_rwlock_init(&mutex_, NULL)); }
+-Mutex::~Mutex()            { SAFE_PTHREAD(pthread_rwlock_destroy(&mutex_)); }
+-void Mutex::Lock()         { SAFE_PTHREAD(pthread_rwlock_wrlock(&mutex_)); }
+-void Mutex::Unlock()       { SAFE_PTHREAD(pthread_rwlock_unlock(&mutex_)); }
+-void Mutex::ReaderLock()   { SAFE_PTHREAD(pthread_rwlock_rdlock(&mutex_)); }
+-void Mutex::ReaderUnlock() { SAFE_PTHREAD(pthread_rwlock_unlock(&mutex_)); }
++// Mutex::Mutex()             { SAFE_PTHREAD(pthread_rwlock_init(&mutex_, NULL)); }
++// Mutex::~Mutex()            { SAFE_PTHREAD(pthread_rwlock_destroy(&mutex_)); }
++// void Mutex::Lock()         { SAFE_PTHREAD(pthread_rwlock_wrlock(&mutex_)); }
++// void Mutex::Unlock()       { SAFE_PTHREAD(pthread_rwlock_unlock(&mutex_)); }
++// void Mutex::ReaderLock()   { SAFE_PTHREAD(pthread_rwlock_rdlock(&mutex_)); }
++// void Mutex::ReaderUnlock() { SAFE_PTHREAD(pthread_rwlock_unlock(&mutex_)); }
+ 
+-#undef SAFE_PTHREAD
++// #undef SAFE_PTHREAD
+ 
+ #else
+ 

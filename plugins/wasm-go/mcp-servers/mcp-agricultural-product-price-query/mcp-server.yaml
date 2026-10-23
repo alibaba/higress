@@ -1,0 +1,151 @@
+server:
+  name: agricultural-product-price-query
+  config:
+    appCode: ""
+tools:
+  - name: avg-price
+    description: 地区均价
+    args:
+      - name: city
+        description: 地级市名称
+        type: string
+        position: body
+      - name: code
+        description: 农产品代码，通过【支持产品查询】接口获取的code
+        type: string
+        required: true
+        position: body
+      - name: province
+        description: 省份名称，暂不支持港澳台地区，省份名字不带“省”字，譬如：浙江省，输入浙江
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://lhncpcx.market.alicloudapi.com/agricultural/products/region/average-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**:  (Type: integer)
+        - **data**:  (Type: object)
+          - **data.avg**: 参考均价 (Type: string)
+          - **data.sample**: 样本数量 (Type: string)
+          - **data.unit**: 计价单位 (Type: string)
+        - **msg**:  (Type: string)
+        - **taskNo**:  (Type: string)
+
+        ## Original Response
+
+  - name: product-query
+    description: 支持产品查询
+    args:
+      - name: name
+        description: 农产品名称，支持模糊查询
+        type: string
+        position: body
+      - name: type
+        description: 农产品种类，1表示畜产，2表示水产，3代表粮油，4代表果品，5代表蔬菜
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://lhncpcx.market.alicloudapi.com/agricultural/products/query
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 接口返回码【注意：不等于HTTP响应状态码】 (Type: integer)
+        - **data**:  (Type: array)
+          - **data[].code**: 农产品代码 (Type: string)
+          - **data[].genus**: 产品种类 (Type: string)
+          - **data[].genusCode**: 产品种类代码 (Type: string)
+          - **data[].name**: 名称 (Type: string)
+        - **msg**: 接口返回码对应的描述信息 (Type: string)
+        - **taskNo**: 任务订单号【可反馈服务商复核对应订单】 (Type: string)
+
+        ## Original Response
+
+  - name: newest-price
+    description: 最新参考价
+    args:
+      - name: city
+        description: 地级市名称
+        type: string
+        position: body
+      - name: code
+        description: 农产品代码，通过【支持产品查询】接口获取的code
+        type: string
+        required: true
+        position: body
+      - name: province
+        description: 省份名称，暂不支持港澳台地区，省份名字不带“省”字，譬如：浙江省，输入浙江
+        type: string
+        required: true
+        position: body
+    requestTemplate:
+      url: https://lhncpcx.market.alicloudapi.com/agricultural/products/lastest/reference-price
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 接口返回码【注意：不等于HTTP响应状态码】 (Type: integer)
+        - **data**:  (Type: array)
+          - **data[].address**: 价格获取地址（单位） (Type: string)
+          - **data[].date**: 更新时间 (Type: string)
+          - **data[].money**: 价格 (Type: string)
+          - **data[].unit**: 单位 (Type: string)
+        - **msg**: 接口返回码对应的描述信息 (Type: string)
+        - **taskNo**: 任务订单号【可反馈服务商复核对应订单】 (Type: string)
+
+        ## Original Response

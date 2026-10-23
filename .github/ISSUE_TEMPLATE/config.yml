@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Ask a question 💬
+    url: https://github.com/alibaba/higress/discussions
+    about: Ask a question or request support for using Higress.

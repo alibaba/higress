@@ -1,0 +1,122 @@
+static_resources:
+  listeners:
+    - name: main
+      address:
+        socket_address:
+          address: 0.0.0.0
+          port_value: 18000
+      filter_chains:
+        - filters:
+            - name: envoy.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: auto
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains:
+                        - "*"
+                      routes:
+                        - match:
+                            prefix: "/api"
+                          route:
+                            cluster: github
+                http_filters:
+                  - name: envoy.filters.http.wasm
+                    typed_config:
+                      "@type": type.googleapis.com/udpa.type.v1.TypedStruct
+                      type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+                      value:
+                        config:
+                          configuration:
+                            "@type": type.googleapis.com/google.protobuf.StringValue
+                            value: |-
+                              {
+                                "gql": "query ($owner:String! $name:String!){\n repository(owner:$owner, name:$name) {\n name\n forkCount\n description\n}\n}",
+                                "domain": "api.github.com",
+                                "endpoint": "/graphql",
+                                "timeout": 2000
+                              }
+                          vm_config:
+                            runtime: "envoy.wasm.runtime.v8"
+                            code:
+                              local:
+                                filename: "./main.wasm"
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+
+    - name: staticreply
+      address:
+        socket_address:
+          address: 127.0.0.1
+          port_value: 8099
+      filter_chains:
+        - filters:
+            - name: envoy.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: ingress_http
+                codec_type: auto
+                route_config:
+                  name: local_route
+                  virtual_hosts:
+                    - name: local_service
+                      domains:
+                        - "*"
+                      routes:
+                        - match:
+                            prefix: "/"
+                          direct_response:
+                            status: 200
+                            body:
+                              inline_string: "example body\n"
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    - name: mock_service
+      connect_timeout: 0.25s
+      type: STATIC
+      lb_policy: ROUND_ROBIN
+      load_assignment:
+        cluster_name: mock_service
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: 8099
+    - name: github
+      connect_timeout: 0.5s
+      type: STRICT_DNS
+      lb_policy: ROUND_ROBIN
+      dns_refresh_rate: 5s
+      dns_lookup_family: V4_ONLY
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+      load_assignment:
+        cluster_name: github
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: api.github.com
+                      port_value: 443
+
+
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 8001

@@ -1,0 +1,487 @@
+server:
+  name: fund-data-query
+  config:
+    appCode: ""
+tools:
+  - name: fund-list
+    description: 在售基金列表
+    args:
+      - name: limit
+        description: 分页条数
+        type: string
+        position: query
+      - name: page
+        description: 分页页码
+        type: string
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundList
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-guzhi
+    description: 基金估值数据
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundGuzhi
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-notice
+    description: 基金公告数据
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+      - name: limit
+        description: 分页条数
+        type: string
+        position: query
+      - name: page
+        description: 分页页码
+        type: string
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundNotice
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-bonus
+    description: 基金分红送配
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundBonus
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-manager-history
+    description: 基金历任经理数据查询
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/getFundManagerHistory
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-history
+    description: 基金历史净值
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+      - name: period
+        description: 取值说明：取值1：近一个月；取值2：近3个月；取值3：近6个月；取值4：近一年；取值5：近三年；取值6：近五年；取值7：今年以来；取值8：成立以来；
+        type: string
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundHistory
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-detail
+    description: 基金基础数据查询
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/getFundDetail
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-hold
+    description: 基金持仓数据
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+      - name: reportDate
+        description: 公告日期，格式为2020-06-30,2020-03-31，不传则默认最新
+        type: string
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundHold
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-rank
+    description: 基金收益排名
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundRank
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-manager
+    description: 基金基础数据查询
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/getFundManager
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-asset
+    description: 基金规模变化
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+      - name: limit
+        description: 分页条数
+        type: string
+        position: query
+      - name: page
+        description: 分页页码
+        type: string
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundAsset
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-rate
+    description: 基金费率数据
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundRate
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-yield
+    description: 查询近三个月的历史数据
+    args:
+      - name: fundcode
+        description: 基金代码
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/queryFundYield
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+
+  - name: fund-new
+    description: 新发基金列表
+    args:
+      - name: limit
+        description: 分页条数
+        type: string
+        position: query
+      - name: page
+        description: 分页页码
+        type: string
+        position: query
+      - name: saleStatus
+        description: 销售状态，true为可售，false为不可售
+        type: string
+        position: query
+    requestTemplate:
+      url: https://fund.market.alicloudapi.com/fundNew
+      method: GET
+      headers:
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+
+        ## Original Response
+

@@ -1,0 +1,36 @@
+name: Validate Legacy Plugin Server Publication
+
+# A tag must not create a gateway-version plugin-server image. The protected
+# snapshot workflow is the sole production writer after the external ACL
+# cutover documented in docs/release/immutable-plugin-releases.md.
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      plugin_server_ref:
+        description: "Rejected legacy floating source input"
+        required: false
+        type: string
+      version:
+        description: "Rejected legacy image tag input"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-plugin-server-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse competing production writer
+        run: |
+          echo "::error::plugin-server:<gateway-version> is written only by build-plugin-server-from-snapshot"
+          exit 1

@@ -1,0 +1,16 @@
+{{- if .Values.global.enablePluginServer }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pluginServer.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "pluginServer.labels" . | nindent 4 }}
+spec:
+  ports:
+    - protocol: TCP
+      port: {{ .Values.pluginServer.service.port }}
+      targetPort: 8080
+  selector:
+    {{- include "pluginServer.selectorLabels" . | nindent 4 }}
+{{- end }}

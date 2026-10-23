@@ -1,0 +1,55 @@
+server:
+  name: context7-mcp-server
+tools:
+  - name: resolve-library-id
+    description: Required first step - Resolves a general package name into a Context7-compatible library ID. Must be called before using 'get-library-docs' to retrieve a valid Context7-compatible library ID.
+    args:
+      - name: query
+        description: Library name to search for and retrieve a Context7-compatible library ID.
+        type: string
+        required: true
+        position: query
+    requestTemplate:
+      url: https://context7.com/api/v1/search
+      method: GET
+    responseTemplate:
+      body: |
+        {{- range $index, $item := .results }}
+          ## 结果 {{add $index 1}}
+          - **id**: {{ $item.id }}
+          - **title**: {{ $item.title }}
+          - **description**: {{ $item.description }}
+        {{- end }}
+  - name: get-library-docs
+    description: Fetches up-to-date documentation for a library. You must call 'resolve-library-id' first to obtain the exact Context7-compatible library ID required to use this tool.
+    args:
+      - name: folders
+        description: Folders filter for organizing documentation
+        type: string
+        position: query
+      - name: libraryId
+        description: Unique identifier of the library
+        type: string
+        required: true
+        position: path
+      - name: tokens
+        description: Maximum number of tokens to return
+        type: integer
+        position: query
+        default: 5000
+      - name: topic
+        description: Specific topic within the documentation
+        type: string
+        position: query
+      - name: type
+        description: Type of documentation to retrieve
+        type: string
+        position: query
+        enum: ["txt"]
+    requestTemplate:
+      url: https://context7.com/api/v1{libraryId}
+      method: GET
+      headers:
+        - key: X-Context7-Source
+          value: server
+  

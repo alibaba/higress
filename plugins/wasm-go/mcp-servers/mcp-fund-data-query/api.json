@@ -1,0 +1,552 @@
+{
+  "info": {
+    "description": "查询基金净值、基金排名、基金历史净值、基金分红、基金费率、基金经理、基金收益排名等基础信息",
+    "title": "基金数据查询接口_基金信息API_基金净值走势查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/fundHistory": {
+      "get": {
+        "operationId": "基金历史净值",
+        "summary": "基金历史净值",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "000263",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "取值说明：取值1：近一个月；取值2：近3个月；取值3：近6个月；取值4：近一年；取值5：近三年；取值6：近五年；取值7：今年以来；取值8：成立以来；",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "date": {
+                        "type": "string",
+                        "example": "2022-09-21",
+                        "description": "数据日期"
+                      },
+                      "totalValue": {
+                        "type": "number",
+                        "example": 4.047,
+                        "description": "累计净值"
+                      },
+                      "fundCode": {
+                        "type": "string",
+                        "example": "000263",
+                        "description": "基金代码"
+                      },
+                      "netValue": {
+                        "type": "number",
+                        "example": 3.77,
+                        "description": "单位净值"
+                      },
+                      "dayOfGrowth": {
+                        "type": "number",
+                        "example": -0.95,
+                        "description": "日涨幅"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/queryFundYield": {
+      "get": {
+        "operationId": "基金走势数据",
+        "summary": "查询近三个月的历史数据",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "001227",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getFundManager": {
+      "get": {
+        "operationId": "基金经理数据",
+        "summary": "基金基础数据查询",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "001227",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getFundManagerHistory": {
+      "get": {
+        "operationId": "基金历任经理",
+        "summary": "基金历任经理数据查询",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "001227",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundRate": {
+      "get": {
+        "operationId": "基金费率数据",
+        "summary": "基金费率数据",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "001707",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/getFundDetail": {
+      "get": {
+        "operationId": "基金基础数据",
+        "summary": "基金基础数据查询",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "001227",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundGuzhi": {
+      "get": {
+        "operationId": "基金估值数据",
+        "summary": "基金估值数据",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "001707",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundNotice": {
+      "get": {
+        "operationId": "基金公告数据",
+        "summary": "基金公告数据",
+        "parameters": [
+          {
+            "description": "分页页码",
+            "example": "1",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分页条数",
+            "example": "10",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "基金代码",
+            "example": "150186",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundAsset": {
+      "get": {
+        "operationId": "基金规模变化",
+        "summary": "基金规模变化",
+        "parameters": [
+          {
+            "description": "分页页码",
+            "example": "1",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分页条数",
+            "example": "10",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "基金代码",
+            "example": "150186",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundRank": {
+      "get": {
+        "operationId": "基金收益排名",
+        "summary": "基金收益排名",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "000263",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundNew": {
+      "get": {
+        "operationId": "新发基金列表",
+        "summary": "新发基金列表",
+        "parameters": [
+          {
+            "description": "分页页码",
+            "example": "1",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分页条数",
+            "example": "10",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "销售状态，true为可售，false为不可售",
+            "in": "query",
+            "name": "saleStatus",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundHold": {
+      "get": {
+        "operationId": "基金持仓数据",
+        "summary": "基金持仓数据",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "000263",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "公告日期，格式为2020-06-30,2020-03-31，不传则默认最新",
+            "in": "query",
+            "name": "reportDate",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundBonus": {
+      "get": {
+        "operationId": "基金分红送配",
+        "summary": "基金分红送配",
+        "parameters": [
+          {
+            "description": "基金代码",
+            "example": "000263",
+            "in": "query",
+            "name": "fundcode",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/fundList": {
+      "get": {
+        "operationId": "在售基金列表",
+        "summary": "在售基金列表",
+        "parameters": [
+          {
+            "description": "分页页码",
+            "example": "1",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分页条数",
+            "example": "10",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://fund.market.alicloudapi.com"
+    }
+  ]
+}

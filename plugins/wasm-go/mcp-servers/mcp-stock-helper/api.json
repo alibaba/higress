@@ -1,0 +1,2623 @@
+{
+  "info": {
+    "description": "【实时股票行情 全球股票查询 沪深股市行情 外汇行情 期货行情】提供全球各类金融数据查询，包括全球主要股市、汇市以及期货市场行情等，实时行情查询，即时更新。—— 我们只做精品！",
+    "title": "【聚美智数】股票实时行情查询-股票查询-外汇行情-期货行情-沪深股市行情-全球股市行情-港股行情查询-美股行情-股票价格查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/finance/hk-stocks-kline": {
+      "post": {
+        "operationId": "港股K线",
+        "summary": "港股K线",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码，如：08026",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "返回条数，默认10",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "k线类型， 1:1分钟，5：五分钟；15：15分钟；30:30分钟，60:60分钟，120:120分钟，240:日K，1200:周K，7200:月K，21600:季K，43200:半年K，86400:年K",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "type"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": "202960247220113090298671"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "volume": {
+                                "type": "string",
+                                "description": "当前成交数",
+                                "example": "6000"
+                              },
+                              "high": {
+                                "type": "string",
+                                "description": "当前最高价",
+                                "example": "0.25000"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "description": "当前成交额",
+                                "example": "1284"
+                              },
+                              "low": {
+                                "type": "string",
+                                "description": "当前最低价",
+                                "example": "0.20000"
+                              },
+                              "day": {
+                                "type": "string",
+                                "description": "数据时间",
+                                "example": "2024-04-18 11:00:00"
+                              },
+                              "close": {
+                                "type": "string",
+                                "description": "当前收盘价",
+                                "example": "0.25000"
+                              },
+                              "open": {
+                                "type": "string",
+                                "description": "当前开盘价",
+                                "example": "0.20000"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/hk-stocks-price": {
+      "post": {
+        "operationId": "港股报价",
+        "summary": "港股报价",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码，以英文逗号分割，如：08026,02203",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 202960247220113100000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "08026": {
+                          "type": "object",
+                          "properties": {
+                            "change": {
+                              "type": "string",
+                              "description": "涨跌额",
+                              "example": -0.015
+                            },
+                            "enname": {
+                              "type": "string",
+                              "description": "英文缩写",
+                              "example": "CB GLOBAL"
+                            },
+                            "volume": {
+                              "type": "string",
+                              "description": "成交量",
+                              "example": 546000
+                            },
+                            "high": {
+                              "type": "string",
+                              "description": "今日最高价",
+                              "example": 0.237
+                            },
+                            "update_time": {
+                              "type": "integer",
+                              "description": "数据时间戳",
+                              "example": 1713763480
+                            },
+                            "low": {
+                              "type": "string",
+                              "description": "今日最低价",
+                              "example": 0.211
+                            },
+                            "pe": {
+                              "type": "string",
+                              "description": "市盈率",
+                              "example": 0
+                            },
+                            "price": {
+                              "type": "string",
+                              "description": "实时价格",
+                              "example": 0.216
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "品种名称",
+                              "example": "朗华国际集团"
+                            },
+                            "ask": {
+                              "type": "string",
+                              "description": "卖价",
+                              "example": 0.219
+                            },
+                            "52week_low": {
+                              "type": "string",
+                              "description": "52周最低价",
+                              "example": 0.173
+                            },
+                            "preclose": {
+                              "type": "string",
+                              "description": "昨日收盘价",
+                              "example": 0.231
+                            },
+                            "changeRate": {
+                              "type": "string",
+                              "description": "涨跌率",
+                              "example": -6.494
+                            },
+                            "bid": {
+                              "type": "string",
+                              "description": "买价",
+                              "example": 0.213
+                            },
+                            "value": {
+                              "type": "string",
+                              "description": "成交额",
+                              "example": 117030
+                            },
+                            "open": {
+                              "type": "string",
+                              "description": "今日开盘价",
+                              "example": 0.212
+                            },
+                            "52week_high": {
+                              "type": "string",
+                              "description": "52周最高价",
+                              "example": 0.65
+                            }
+                          }
+                        },
+                        "02203": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/external-futures-contract": {
+      "post": {
+        "operationId": "外盘期货合约",
+        "summary": "外盘期货合约",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "期货品种代码，详见代码表",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 906962467150026900000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/global-index-kline": {
+      "post": {
+        "operationId": "全球指数K线",
+        "summary": "全球指数K线",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "指数品种代码，详见代码表",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "返回条数，默认10",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "k线类型， 240:日K，1200:周K，7200:月K，21600:季K，43200:半年K，86400:年K",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "type"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 457509372194972200000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "volume": {
+                                "type": "integer",
+                                "description": "当前成交数",
+                                "example": 789222016
+                              },
+                              "high": {
+                                "type": "string",
+                                "description": "当前最高价",
+                                "example": "8237.3600"
+                              },
+                              "low": {
+                                "type": "string",
+                                "description": "当前最低价",
+                                "example": "8162.6800"
+                              },
+                              "day": {
+                                "type": "string",
+                                "description": "数据时间",
+                                "example": "2024-06-28"
+                              },
+                              "close": {
+                                "type": "string",
+                                "description": "当前收盘价",
+                                "example": "8164.1200"
+                              },
+                              "amount": {
+                                "type": "string",
+                                "description": "当前成交额",
+                                "example": "8164.1200"
+                              },
+                              "open": {
+                                "type": "string",
+                                "description": "当前开盘价",
+                                "example": "8179.6800"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/global-index-price": {
+      "post": {
+        "operationId": "全球指数报价",
+        "summary": "全球指数报价",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "指数品种代码，详见代码表",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 648000384175923100000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "UKX": {
+                          "type": "object",
+                          "properties": {
+                            "high": {
+                              "type": "string",
+                              "description": "今日最高价",
+                              "example": 8240.4
+                            },
+                            "update_time": {
+                              "type": "integer",
+                              "description": "数据时间戳",
+                              "example": 1721662530
+                            },
+                            "low": {
+                              "type": "string",
+                              "description": "今日最低价",
+                              "example": 8155.72
+                            },
+                            "price": {
+                              "type": "string",
+                              "description": "实时价格",
+                              "example": 8198.78
+                            },
+                            "change": {
+                              "type": "string",
+                              "description": "涨跌额",
+                              "example": 43.06
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "品种名称",
+                              "example": "英国富时100"
+                            },
+                            "changeRate": {
+                              "type": "string",
+                              "description": "涨跌率",
+                              "example": 0.53
+                            },
+                            "preclose": {
+                              "type": "string",
+                              "description": "昨日收盘价",
+                              "example": 8155.72
+                            },
+                            "open": {
+                              "type": "string",
+                              "description": "今日开盘价",
+                              "example": 8155.72
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/external-futures-kline": {
+      "post": {
+        "operationId": "外盘期货K线",
+        "summary": "外盘期货K线",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "期货品种代码，详见代码表",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "返回条数，默认10",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "k线类型，0:日k，1:1分钟，5：五分钟；30:30分钟，60:60分钟，120:120分钟，240:240分钟",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "type"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lines": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/external-futures-price": {
+      "post": {
+        "operationId": "外盘期货报价",
+        "summary": "外盘期货报价",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "期货品种代码，详见代码表",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "change": {
+                          "type": "string",
+                          "description": "涨跌额"
+                        },
+                        "ask_vol": {
+                          "type": "string",
+                          "description": "卖量"
+                        },
+                        "bid_vol": {
+                          "type": "string",
+                          "description": "买量"
+                        },
+                        "hold": {
+                          "type": "string",
+                          "description": "持仓量"
+                        },
+                        "volume": {
+                          "type": "string",
+                          "description": "成交量"
+                        },
+                        "high": {
+                          "type": "string",
+                          "description": "最高价"
+                        },
+                        "update_time": {
+                          "type": "integer",
+                          "description": "数据时间戳"
+                        },
+                        "low": {
+                          "type": "string",
+                          "description": "最低价"
+                        },
+                        "price": {
+                          "type": "string",
+                          "description": "实时价格"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "品种名称"
+                        },
+                        "ask": {
+                          "type": "string",
+                          "description": "卖价"
+                        },
+                        "changeRate": {
+                          "type": "string",
+                          "description": "涨跌率"
+                        },
+                        "preclose": {
+                          "type": "string",
+                          "description": "昨日收盘价"
+                        },
+                        "bid": {
+                          "type": "string",
+                          "description": "买价"
+                        },
+                        "open": {
+                          "type": "string",
+                          "description": "开盘价"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/us-shares-kline": {
+      "post": {
+        "operationId": "美股K线",
+        "summary": "美股K线",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "返回条数，默认10",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "k线类型， 1:1分钟，5：五分钟；15：15分钟；30:30分钟，60:60分钟，120:120分钟，240:日K，1200:周K，7200:月K，21600:季K，43200:半年K，86400:年K",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "type"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 279719607212732200000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "volume": {
+                                "type": "integer",
+                                "description": "当前成交数",
+                                "example": 1689339
+                              },
+                              "high": {
+                                "type": "string",
+                                "description": "当前最高价",
+                                "example": 220.58
+                              },
+                              "amount": {
+                                "type": "integer",
+                                "description": "当前成交额正常返回示例",
+                                "example": 371739000
+                              },
+                              "low": {
+                                "type": "string",
+                                "description": "当前最低价",
+                                "example": 219.62
+                              },
+                              "day": {
+                                "type": "string",
+                                "description": "数据时间",
+                                "example": "2024-07-03T11:00:00Z"
+                              },
+                              "close": {
+                                "type": "string",
+                                "description": "当前收盘价",
+                                "example": 220.54
+                              },
+                              "open": {
+                                "type": "string",
+                                "description": "当前开盘价",
+                                "example": 219.83
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/us-shares-price": {
+      "post": {
+        "operationId": "美股报价",
+        "summary": "美股报价",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码，以英文逗号分割，如：INTC,AAPL",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 200966658220607500000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "AAPL": {
+                          "type": "object",
+                          "properties": {
+                            "after_price": {
+                              "type": "string",
+                              "description": "盘后价格",
+                              "example": 221.08
+                            },
+                            "volume_avg10": {
+                              "type": "string",
+                              "description": "10日平均成交量",
+                              "example": 86695457
+                            },
+                            "market_value": {
+                              "type": "string",
+                              "description": "总市值",
+                              "example": 3397265867100
+                            },
+                            "trade_time": {
+                              "type": "string",
+                              "description": "交易时间",
+                              "example": "2024-07-04T01:00:00Z"
+                            },
+                            "change": {
+                              "type": "string",
+                              "description": "涨跌额",
+                              "example": 1.28
+                            },
+                            "eps": {
+                              "type": "string",
+                              "description": "每股收益",
+                              "example": 6.46
+                            },
+                            "after_volume": {
+                              "type": "string",
+                              "description": "盘后成交量",
+                              "example": 1132411
+                            },
+                            "volume": {
+                              "type": "string",
+                              "description": "成交量",
+                              "example": 37369801
+                            },
+                            "shares": {
+                              "type": "string",
+                              "description": "总股本",
+                              "example": 15334082000
+                            },
+                            "after_change": {
+                              "type": "string",
+                              "description": "盘后涨跌额",
+                              "example": -0.47
+                            },
+                            "high": {
+                              "type": "string",
+                              "description": "今日最高价",
+                              "example": 221.55
+                            },
+                            "update_time": {
+                              "type": "string",
+                              "description": "数据时间",
+                              "example": "2024-07-04T09:45:24Z"
+                            },
+                            "low": {
+                              "type": "string",
+                              "description": "今日最低价",
+                              "example": 219.03
+                            },
+                            "pe": {
+                              "type": "string",
+                              "description": "市盈率",
+                              "example": 34.3
+                            },
+                            "price": {
+                              "type": "string",
+                              "description": "实时价格",
+                              "example": 221.55
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "品种名称",
+                              "example": "苹果"
+                            },
+                            "dividend": {
+                              "type": "string",
+                              "description": "股息率",
+                              "example": 0.25
+                            },
+                            "52week_low": {
+                              "type": "string",
+                              "description": "52周最低价",
+                              "example": 163.83
+                            },
+                            "after_changeRate": {
+                              "type": "string",
+                              "description": "盘后涨跌率",
+                              "example": -0.21
+                            },
+                            "changeRate": {
+                              "type": "string",
+                              "description": "涨跌率",
+                              "example": 0.58
+                            },
+                            "preclose": {
+                              "type": "string",
+                              "description": "昨日收盘价",
+                              "example": 220.27
+                            },
+                            "open": {
+                              "type": "string",
+                              "description": "今日开盘价",
+                              "example": 220
+                            },
+                            "52week_high": {
+                              "type": "string",
+                              "description": "52周最高价",
+                              "example": 221.55
+                            },
+                            "after_time": {
+                              "type": "string",
+                              "description": "盘后数据时间",
+                              "example": "2024-07-04T05:00:00Z"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/us-shares-ranking": {
+      "post": {
+        "operationId": "美股排行",
+        "summary": "美股排行",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "asc": {
+                    "description": "排序顺序，0 倒序（由大到小）， 1正序（由小到大），默认0",
+                    "type": "string"
+                  },
+                  "market": {
+                    "description": "市场代码，可选：all 全部美股 ，tech 科技股，china 中概股，star 明星股",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "每页条数，最大100条，默认10",
+                    "type": "string"
+                  },
+                  "sort": {
+                    "description": "排序字段，可选：changeRate 涨跌率排序，volume 成交量排序，value 成交额排序 ， totalShare 总市值排序",
+                    "type": "string"
+                  },
+                  "page": {
+                    "description": "页码，默认1",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sort",
+                  "market"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": "309443174209760778124907"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "volume": {
+                                "type": "string",
+                                "description": "成交量",
+                                "example": "215748955"
+                              },
+                              "symbol": {
+                                "type": "string",
+                                "description": "品种代码",
+                                "example": "NVDA"
+                              },
+                              "high": {
+                                "type": "string",
+                                "description": "今日最高价",
+                                "example": "128.2800"
+                              },
+                              "low": {
+                                "type": "string",
+                                "description": "今日最低价",
+                                "example": "121.3600"
+                              },
+                              "price": {
+                                "type": "string",
+                                "description": "实时价格",
+                                "example": "128.2800"
+                              },
+                              "change": {
+                                "type": "string",
+                                "description": "涨跌额",
+                                "example": "5.61"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "品种名称",
+                                "example": "英伟达"
+                              },
+                              "preclose": {
+                                "type": "string",
+                                "description": "昨日收盘价",
+                                "example": "122.6700"
+                              },
+                              "changeRate": {
+                                "type": "string",
+                                "description": "涨跌率",
+                                "example": "4.57"
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": "成交额",
+                                "example": "27018856766.0000"
+                              },
+                              "open": {
+                                "type": "string",
+                                "description": "今日开盘价",
+                                "example": "121.6600"
+                              },
+                              "totalShare": {
+                                "type": "string",
+                                "example": "3155475307911"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/us-shares-symbol": {
+      "post": {
+        "operationId": "美股品种",
+        "summary": "美股品种",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "market": {
+                    "description": "市场，au 美交所 ，nu 纽交所 ，ou 纳斯达克",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "market"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 644761017176229000000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "symbol": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/hk-shares-ranking": {
+      "post": {
+        "operationId": "港股排行",
+        "summary": "港股排行",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "asc": {
+                    "description": "排序顺序，0 倒序（由大到小）， 1正序（由小到大），默认0",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "每页条数，最大100条，默认10",
+                    "type": "string"
+                  },
+                  "sort": {
+                    "description": "排序字段，目前仅支持：changeRate 涨跌率排序",
+                    "type": "string"
+                  },
+                  "page": {
+                    "description": "页码，默认1",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sort"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": "202960247220113090298671"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "symbol": {
+                                "type": "string",
+                                "description": "品种代码",
+                                "example": "02203"
+                              },
+                              "market_value": {
+                                "type": "string",
+                                "description": "总市值",
+                                "example": "75200000.000"
+                              },
+                              "change": {
+                                "type": "string",
+                                "description": "涨跌额",
+                                "example": "0.044"
+                              },
+                              "eps": {
+                                "type": "string",
+                                "description": "每股收益",
+                                "example": "-0.006"
+                              },
+                              "volume": {
+                                "type": "string",
+                                "description": "成交量",
+                                "example": "17180000"
+                              },
+                              "shares": {
+                                "type": "string",
+                                "description": "总股本",
+                                "example": "800000000"
+                              },
+                              "high": {
+                                "type": "string",
+                                "description": "今日最高价",
+                                "example": "0.111"
+                              },
+                              "update_time": {
+                                "type": "integer",
+                                "description": "数据时间戳",
+                                "example": 1713755536
+                              },
+                              "low": {
+                                "type": "string",
+                                "description": "今日最低价",
+                                "example": "0.064"
+                              },
+                              "pe": {
+                                "type": "string",
+                                "description": "市盈率",
+                                "example": "-15.6666667"
+                              },
+                              "price": {
+                                "type": "string",
+                                "description": "实时价格",
+                                "example": "0.094"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "品种名称",
+                                "example": "脑洞科技"
+                              },
+                              "ask": {
+                                "type": "string",
+                                "description": "卖价",
+                                "example": "0.094"
+                              },
+                              "dividend": {
+                                "type": "string",
+                                "description": "股息率",
+                                "example": "0.000"
+                              },
+                              "52week_low": {
+                                "type": "string",
+                                "description": "52周最低价",
+                                "example": "0.038"
+                              },
+                              "preclose": {
+                                "type": "string",
+                                "description": "昨日收盘价",
+                                "example": "0.050"
+                              },
+                              "bid": {
+                                "type": "string",
+                                "description": "买价",
+                                "example": "0.091"
+                              },
+                              "changeRate": {
+                                "type": "string",
+                                "description": "涨跌率",
+                                "example": "88.0000000"
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": "成交额",
+                                "example": "1586410"
+                              },
+                              "open": {
+                                "type": "string",
+                                "description": "今日开盘价",
+                                "example": "0.057"
+                              },
+                              "52week_high": {
+                                "type": "string",
+                                "description": "52周最高价",
+                                "example": "0.210"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/a-shares-price": {
+      "post": {
+        "operationId": "A股报价",
+        "summary": "A股报价",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码，以英文逗号分割，如：sz000002,bj430047",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 202960247220113100000000
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "sh688193": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "品种名称",
+                              "example": "仁度生物"
+                            },
+                            "bid1_vol": {
+                              "type": "string",
+                              "description": "买1量",
+                              "example": "3850"
+                            },
+                            "high": {
+                              "type": "string",
+                              "description": "今日最高价",
+                              "example": "28.670"
+                            },
+                            "update_time": {
+                              "type": "integer",
+                              "description": "数据时间戳",
+                              "example": 1713336733
+                            },
+                            "low": {
+                              "type": "string",
+                              "description": "今日最低价",
+                              "example": "26.710"
+                            },
+                            "price": {
+                              "type": "string",
+                              "description": "实时价格",
+                              "example": "27.910"
+                            },
+                            "ask1_vol": {
+                              "type": "string",
+                              "description": "卖1量",
+                              "example": "454"
+                            },
+                            "bid2_vol": {
+                              "type": "string",
+                              "description": "买2量",
+                              "example": "700"
+                            },
+                            "changeRate": {
+                              "type": "string",
+                              "description": "涨跌率",
+                              "example": "4.6887"
+                            },
+                            "ask5_vol": {
+                              "type": "string",
+                              "description": "卖5量",
+                              "example": "600"
+                            },
+                            "value": {
+                              "type": "string",
+                              "description": "成交额",
+                              "example": "8457252.000"
+                            },
+                            "bid4_vol": {
+                              "type": "string",
+                              "description": "买4量",
+                              "example": "40"
+                            },
+                            "change": {
+                              "type": "string",
+                              "description": "涨跌额",
+                              "example": "1.2500"
+                            },
+                            "bid3_vol": {
+                              "type": "string",
+                              "description": "买3量",
+                              "example": "1400"
+                            },
+                            "ask2_vol": {
+                              "type": "string",
+                              "description": "卖2量",
+                              "example": "843"
+                            },
+                            "volume": {
+                              "type": "string",
+                              "description": "成交量",
+                              "example": "303488"
+                            },
+                            "bid5_vol": {
+                              "type": "string",
+                              "description": "买5量",
+                              "example": "1400"
+                            },
+                            "ask4_vol": {
+                              "type": "string",
+                              "description": "卖4量",
+                              "example": "2064"
+                            },
+                            "ask5": {
+                              "type": "string",
+                              "description": "卖5价",
+                              "example": "28.160"
+                            },
+                            "ask2": {
+                              "type": "string",
+                              "description": "卖2价",
+                              "example": "28.010"
+                            },
+                            "ask1": {
+                              "type": "string",
+                              "description": "卖1价",
+                              "example": "28.000"
+                            },
+                            "bid5": {
+                              "type": "string",
+                              "description": "买5价",
+                              "example": "27.780"
+                            },
+                            "ask4": {
+                              "type": "string",
+                              "description": "卖4价",
+                              "example": "28.130"
+                            },
+                            "ask3": {
+                              "type": "string",
+                              "description": "卖3价",
+                              "example": "28.020"
+                            },
+                            "ask": {
+                              "type": "string",
+                              "example": "28.000"
+                            },
+                            "bid3": {
+                              "type": "string",
+                              "description": "买3价",
+                              "example": "27.840"
+                            },
+                            "bid4": {
+                              "type": "string",
+                              "description": "买4价",
+                              "example": "27.830"
+                            },
+                            "bid1": {
+                              "type": "string",
+                              "description": "买1价",
+                              "example": "27.900"
+                            },
+                            "bid2": {
+                              "type": "string",
+                              "description": "买2价",
+                              "example": "27.850"
+                            },
+                            "preclose": {
+                              "type": "string",
+                              "description": "昨日收盘价",
+                              "example": "26.660"
+                            },
+                            "bid": {
+                              "type": "string",
+                              "example": "27.900"
+                            },
+                            "open": {
+                              "type": "string",
+                              "description": "今日开盘价",
+                              "example": "26.880"
+                            },
+                            "ask3_vol": {
+                              "type": "string",
+                              "description": "卖3量",
+                              "example": "1400"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/a-shares-ranking": {
+      "post": {
+        "operationId": "A股排行",
+        "summary": "A股排行",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "asc": {
+                    "description": "排序顺序，0 倒序（由大到小）， 1正序（由小到大），默认0",
+                    "type": "string"
+                  },
+                  "market": {
+                    "description": "市场代码，可选：hs_a 沪深A股 ，hs_b 沪深B股，hs_bjs 北交所，kcb 科创板，cyb 创业板，hs 沪深所有（AB股全包含）",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "每页条数，最大100条，默认10",
+                    "type": "string"
+                  },
+                  "sort": {
+                    "description": "排序字段，可选：changeRate 涨跌率排序，volume 成交量排序，value 成交额排序，amplitude 振幅排序， turnOver 换手率排序，volumeRatio 量比排序，pe 市盈率排序，pb 市净率排序，totalShare 总市值排序，changes_5m 五分钟涨跌幅排序， aov_5m 五分钟振幅排序，turnover_5m 五分钟换手率排序，changes_5d aov_5d turnover_5d 为五日数据，changes_20d aov_20d turnover_20d 为20日数据",
+                    "type": "string"
+                  },
+                  "page": {
+                    "description": "页码，默认1",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sort",
+                  "market"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": "202960247220113090298671"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "volume": {
+                                "type": "string",
+                                "description": "成交量",
+                                "example": "148761581"
+                              },
+                              "symbol": {
+                                "type": "string",
+                                "description": "品种代码",
+                                "example": "sh601138"
+                              },
+                              "high": {
+                                "type": "string",
+                                "description": "今日最高价",
+                                "example": "22.860"
+                              },
+                              "update_time": {
+                                "type": "integer",
+                                "description": "数据时间戳",
+                                "example": 1713324600
+                              },
+                              "low": {
+                                "type": "string",
+                                "description": "今日最低价",
+                                "example": "21.740"
+                              },
+                              "price": {
+                                "type": "string",
+                                "description": "实时价格",
+                                "example": "22.410"
+                              },
+                              "change": {
+                                "type": "string",
+                                "description": "涨跌额",
+                                "example": "0.6"
+                              },
+                              "name": {
+                                "type": "string",
+                                "description": "品种名称",
+                                "example": "工业富联"
+                              },
+                              "preclose": {
+                                "type": "string",
+                                "description": "昨日收盘价",
+                                "example": "21.810"
+                              },
+                              "changeRate": {
+                                "type": "string",
+                                "description": "涨跌率",
+                                "example": "2.751032"
+                              },
+                              "value": {
+                                "type": "string",
+                                "description": "成交额",
+                                "example": "3319659472.000"
+                              },
+                              "open": {
+                                "type": "string",
+                                "description": "今日开盘价",
+                                "example": "22.500"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/a-kline-restoration": {
+      "post": {
+        "operationId": "A股K线复权",
+        "summary": "A股K线复权",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码，如：sh688193",
+                    "type": "string"
+                  },
+                  "fuquan": {
+                    "description": "复权状态，0不复权，1前复权，2后复权",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "返回条数，默认10",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "1:1分钟K线;5:5分钟K线;15:15分钟K线; 30:30分钟K线;60:60分钟K线;101:日K线;102:周K线;103:月K线; 104:季度K线;105:半年K线;106:年K线",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "type",
+                  "fuquan"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": "202960247220113090298671"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "volume": {
+                                "type": "integer",
+                                "description": "成交量",
+                                "example": 34239
+                              },
+                              "high_px": {
+                                "type": "number",
+                                "description": "最高价",
+                                "example": 22.06
+                              },
+                              "change": {
+                                "type": "number",
+                                "description": "涨跌额",
+                                "example": 0.07
+                              },
+                              "close_px": {
+                                "type": "number",
+                                "description": "收盘价",
+                                "example": 22.03
+                              },
+                              "low_px": {
+                                "type": "number",
+                                "description": "最低价",
+                                "example": 21.93
+                              },
+                              "changeRate": {
+                                "type": "number",
+                                "description": "涨跌率",
+                                "example": 0.32
+                              },
+                              "value": {
+                                "type": "integer",
+                                "description": "成交额",
+                                "example": 75339657
+                              },
+                              "day": {
+                                "type": "string",
+                                "description": "数据时间，具体到分钟",
+                                "example": "2024-04-19 14:30"
+                              },
+                              "open": {
+                                "type": "number",
+                                "description": "开盘价",
+                                "example": 21.96
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/a-shares-kline": {
+      "post": {
+        "operationId": "A股K线",
+        "summary": "A股K线",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码，如：sh688193",
+                    "type": "string"
+                  },
+                  "ma": {
+                    "description": "返回ma均线，可选值为：5,10,15,20,25,30，可不传",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "返回条数，默认10",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "k线类型， 1:1分钟，5：五分钟；15：15分钟；30:30分钟，60:60分钟，120:120分钟，240:日K，1200:周K，7200:月K，86400:年K",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "type"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": "202960247220113090298671"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "amount": {
+                                "type": "string"
+                              },
+                              "ma_volume5": {
+                                "type": "integer",
+                                "description": "5条均成交量正常返回示例"
+                              },
+                              "ma_price5": {
+                                "type": "number",
+                                "description": "5条均价"
+                              },
+                              "volume": {
+                                "type": "string",
+                                "description": "当前成交数"
+                              },
+                              "high": {
+                                "type": "string",
+                                "description": "当前最高价"
+                              },
+                              "low": {
+                                "type": "string",
+                                "description": "当前最低价"
+                              },
+                              "day": {
+                                "type": "string",
+                                "description": "数据时间"
+                              },
+                              "close": {
+                                "type": "string",
+                                "description": "当前收盘价"
+                              },
+                              "open": {
+                                "type": "string",
+                                "description": "当前开盘价"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/internal-futures-contract": {
+      "post": {
+        "operationId": "内盘期货合约",
+        "summary": "内盘期货合约",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "期货品种代码，详见代码表",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": "075556736233047430019762"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "list": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "symbol": {
+                                "type": "string",
+                                "example": "SC0"
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "上海原油2407"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/internal-futures-kline": {
+      "post": {
+        "operationId": "内盘期货K线",
+        "summary": "内盘期货K线",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "期货品种代码，详见代码表",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "返回条数，默认10",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "k线类型，0:日k，1:1分钟，5：五分钟；30:30分钟，60:60分钟，120:120分钟，240:240分钟",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "type"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": "075556736233047430019762"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lines": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "open - 开盘价\nclose - 收盘价\nhigh - 最高价\nlow - 最低价\nchange - 涨跌额，注意此处行业内计算方式有三种，1、收盘价-开盘价(本接口采用)，2、收盘价-上个收盘价，3、收盘价-上个结算价\nchangeRate - 涨跌率，注意此处行业内计算方式有三种，1、(收盘价-开盘价)*100/开盘价(本接口采用)，2、(收盘价-上个收盘价)*100/上个收盘价，3、(收盘价-上个结算价)*100/上个结算价\nvolume - 成交数\ntick_at - 数据时间戳\n"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/internal-futures-price": {
+      "post": {
+        "operationId": "内盘期货报价",
+        "summary": "内盘期货报价",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "期货品种代码，详见代码表",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述",
+                      "example": "成功"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号",
+                      "example": 724250936168090100000000
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明",
+                      "example": 200
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "ask_vol": {
+                          "type": "string"
+                        },
+                        "settle": {
+                          "type": "string"
+                        },
+                        "bid1_vol": {
+                          "type": "string",
+                          "description": "买1量"
+                        },
+                        "hold": {
+                          "type": "string",
+                          "description": "持仓量"
+                        },
+                        "update_time": {
+                          "type": "integer",
+                          "description": "数据时间戳"
+                        },
+                        "high": {
+                          "type": "string",
+                          "description": "今日最高价"
+                        },
+                        "low": {
+                          "type": "string",
+                          "description": "今日最低价"
+                        },
+                        "price": {
+                          "type": "string",
+                          "description": "实时价格"
+                        },
+                        "ask1_vol": {
+                          "type": "string",
+                          "description": "卖1量"
+                        },
+                        "bid2_vol": {
+                          "type": "string",
+                          "description": "买2量"
+                        },
+                        "changeRate": {
+                          "type": "string",
+                          "description": "涨跌率"
+                        },
+                        "ask5_vol": {
+                          "type": "string",
+                          "description": "卖5量"
+                        },
+                        "presettle": {
+                          "type": "string",
+                          "description": "昨日结算价"
+                        },
+                        "avg_px": {
+                          "type": "string",
+                          "description": "均价"
+                        },
+                        "bid4_vol": {
+                          "type": "string",
+                          "description": "买4量"
+                        },
+                        "change": {
+                          "type": "string",
+                          "description": "涨跌额"
+                        },
+                        "bid3_vol": {
+                          "type": "string",
+                          "description": "买3量"
+                        },
+                        "bid_vol": {
+                          "type": "string"
+                        },
+                        "ask2_vol": {
+                          "type": "string",
+                          "description": "卖2量"
+                        },
+                        "volume": {
+                          "type": "string",
+                          "description": "成交量"
+                        },
+                        "bid5_vol": {
+                          "type": "string",
+                          "description": "买5量"
+                        },
+                        "ask4_vol": {
+                          "type": "string",
+                          "description": "卖4量"
+                        },
+                        "ask5": {
+                          "type": "string",
+                          "description": "卖5价"
+                        },
+                        "ask2": {
+                          "type": "string",
+                          "description": "卖2价"
+                        },
+                        "ask1": {
+                          "type": "string",
+                          "description": "卖1价"
+                        },
+                        "bid5": {
+                          "type": "string",
+                          "description": "买5价"
+                        },
+                        "ask4": {
+                          "type": "string",
+                          "description": "卖4价"
+                        },
+                        "ask3": {
+                          "type": "string",
+                          "description": "卖3价"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "品种名称"
+                        },
+                        "ask": {
+                          "type": "string"
+                        },
+                        "bid3": {
+                          "type": "string",
+                          "description": "买3价"
+                        },
+                        "bid4": {
+                          "type": "string",
+                          "description": "买4价"
+                        },
+                        "bid1": {
+                          "type": "string",
+                          "description": "买1价"
+                        },
+                        "bid2": {
+                          "type": "string",
+                          "description": "买2价"
+                        },
+                        "bid": {
+                          "type": "string"
+                        },
+                        "open": {
+                          "type": "string",
+                          "description": "今日开盘价"
+                        },
+                        "ask3_vol": {
+                          "type": "string",
+                          "description": "卖3量"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/foreign-exchange-kline": {
+      "post": {
+        "operationId": "外汇K线",
+        "summary": "外汇K线",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码，如：FXINDEX。详见代码表",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "返回条数，默认10",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "k线类型，0:日k，1:1分钟，5：五分钟；15：十五分钟；30:30分钟，60:60分钟，120:120分钟，240:240分钟",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol",
+                  "type"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "lines": {
+                          "type": "array",
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "fields": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/finance/foreign-exchange-price": {
+      "post": {
+        "operationId": "外汇报价",
+        "summary": "外汇报价",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "symbol": {
+                    "description": "品种代码，如：FXINDEX,CNYRUB。详见代码表",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "symbol"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "msg": {
+                      "type": "string",
+                      "description": "返回码对应描述"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "description": "返回码，详见返回码说明"
+                    },
+                    "taskNo": {
+                      "type": "string",
+                      "description": "本次请求号"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "FXINDEX": {
+                          "type": "object",
+                          "properties": {
+                            "update_time": {
+                              "type": "integer",
+                              "description": "数据时间戳"
+                            },
+                            "bofu": {
+                              "type": "string",
+                              "description": "波幅"
+                            },
+                            "high": {
+                              "type": "string",
+                              "description": "今日最高价"
+                            },
+                            "low": {
+                              "type": "string",
+                              "description": "今日最低价"
+                            },
+                            "price": {
+                              "type": "string",
+                              "description": "实时价格"
+                            },
+                            "change": {
+                              "type": "string",
+                              "description": "涨跌额"
+                            },
+                            "name": {
+                              "type": "string",
+                              "description": "品种名称"
+                            },
+                            "ask": {
+                              "type": "string",
+                              "description": "卖价"
+                            },
+                            "bid": {
+                              "type": "string",
+                              "description": "买价"
+                            },
+                            "preclose": {
+                              "type": "string",
+                              "description": "昨日收盘价"
+                            },
+                            "changeRate": {
+                              "type": "string",
+                              "description": "涨跌率"
+                            },
+                            "open": {
+                              "type": "string",
+                              "description": "今日开盘价"
+                            },
+                            "zhenfu": {
+                              "type": "string",
+                              "description": "振幅"
+                            }
+                          }
+                        },
+                        "CNYRUB": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jmqqgphqcx.market.alicloudapi.com"
+    }
+  ]
+}

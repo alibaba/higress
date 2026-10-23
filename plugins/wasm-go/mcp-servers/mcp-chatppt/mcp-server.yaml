@@ -1,0 +1,121 @@
+server:
+  name: chatppt-server
+  config:
+    apiKey: ""
+
+tools:
+- name: check
+  description: "查询用户当前配置token"
+  args: []
+  requestTemplate:
+    url: "https://saas.api.yoo-ai.com"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {
+        "apiKey": "{{.body}}"
+      }
+
+- name: query_ppt
+  description: "根据PPT任务ID查询异步生成结果"
+  args:
+  - name: ppt_id
+    description: "PPT-ID"
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://saas.api.yoo-ai.com/apps/ppt-result"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {
+        "status": "{{.body.status}}",
+        "process_url": "{{.body.process_url}}"
+      }
+
+- name: build_ppt
+  description: "根据描述的文本或markdown生成PPT"
+  args:
+  - name: text
+    description: "输入描述的文本或markdown"
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://saas.api.yoo-ai.com/apps/ppt-create"
+    method: POST
+    argsToFormBody: true
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {
+        "ppt_id": "{{.body}}"
+      }
+
+- name: replace_template_ppt
+  description: "根据PPT-ID执行替换模板"
+  args:
+  - name: ppt_id
+    description: "PPT-ID"
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://saas.api.yoo-ai.com/apps/ppt-create-task"
+    method: POST
+    argsToFormBody: true
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {
+        "new_ppt_id": "{{.body}}"
+      }
+
+- name: download_ppt
+  description: "生成PPT下载地址"
+  args:
+  - name: ppt_id
+    description: "PPT-ID"
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://saas.api.yoo-ai.com/apps/ppt-download"
+    method: GET
+    argsToUrlParam: true
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {
+        "download_url": "{{.body}}"
+      }
+
+- name: editor_ppt
+  description: "生成PPT编辑器界面URL"
+  args:
+  - name: ppt_id
+    description: "PPT-ID"
+    type: string
+    required: true
+  requestTemplate:
+    url: "https://saas.api.yoo-ai.com/apps/ppt-editor"
+    method: POST
+    argsToFormBody: true
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.apiKey}}"
+  responseTemplate:
+    body: |
+      {
+        "editor_url": "{{.body}}"
+      }

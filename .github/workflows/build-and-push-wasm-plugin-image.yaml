@@ -1,0 +1,57 @@
+name: Validate Legacy Wasm Plugin Request
+
+# Public plugin tags are written only by promote-plugin-release.yaml. This
+# retained entry point deliberately has no registry credentials or write scope.
+on:
+  push:
+    tags:
+      - "wasm-*-*-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      plugin_type:
+        description: "Legacy request type (validated only)"
+        required: true
+        type: choice
+        options: [go, rust]
+      plugin_name:
+        description: "Official catalog logical ID"
+        required: true
+        type: string
+      version:
+        description: "Ignored: public version comes from committed VERSION"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-wasm-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.0"
+      - name: Reject production publication and validate the requested catalog entry
+        env:
+          LEGACY_PLUGIN: ${{ inputs.plugin_name }}
+          LEGACY_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          (cd tools/plugin-release && go run . validate-catalog --root ../.. --catalog ../../plugins/release/catalog.json)
+          if [ -n "${LEGACY_VERSION}" ]; then
+            echo "::error::legacy version input is prohibited; commit VERSION and use prepare-plugin-release"
+            exit 1
+          fi
+          if [ -n "${LEGACY_PLUGIN}" ] && ! jq -e --arg id "$LEGACY_PLUGIN" '.plugins[] | select(.logicalId == $id and .releaseEligible)' plugins/release/catalog.json >/dev/null; then
+            echo "::error::legacy plugin is not an eligible official Go/Rust catalog entry"
+            exit 1
+          fi
+          echo "Legacy publication is disabled. Use prepare-plugin-release and promote-plugin-release."

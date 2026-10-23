@@ -1,0 +1,154 @@
+# Copyright (c) 2022 Alibaba Group Holding Ltd.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: wasmplugin-ai-data-masking
+  namespace: higress-conformance-infra
+spec:
+  ingressClassName: higress
+  rules:
+    - host: "*.openai.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+    - host: "*.raw.com"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: infra-backend-v1
+                port:
+                  number: 8080
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: custom-response
+  namespace: higress-system
+spec:
+  priority: 200
+  defaultConfig:
+    "body": "ok"
+  matchRules:
+    - domain:
+        - ok.openai.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"choices":[{"index":0,"message":{"role":"assistant","content":"ok"}}],"usage":{}}'
+    - domain:
+        - replace.openai.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"choices":[{"index":0,"message":{"role":"assistant","content":"***.***.***.*** c11e7177eb60c80cf983ddf8ca98f2dc1272d4c612204ce9bedd2460b18939cc ****@gmail.com"}}],"usage":{}}'
+
+    - domain:
+        - system_deny.openai.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"choices":[{"index":0,"message":{"role":"assistant","content":"fuck"}}],"usage":{}}'
+    - domain:
+        - costom_word1.openai.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"choices":[{"index":0,"message":{"role":"assistant","content":"costom_word1"}}],"usage":{}}'
+    - domain:
+        - costom_word.openai.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"choices":[{"index":0,"message":{"role":"assistant","content":"costom_word"}}],"usage":{}}'
+    - domain:
+        - ok.raw.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"res":"ok"}'
+    - domain:
+        - replace.raw.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"res":"***.***.***.*** c11e7177eb60c80cf983ddf8ca98f2dc1272d4c612204ce9bedd2460b18939cc ****@gmail.com"}'
+    - domain:
+        - system_deny.raw.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"res":"fuck"}'
+    - domain:
+        - system_no_deny.raw.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"res":"工信处女干事每月经过下属科室都要亲口交代24口交换机等技术性器件的安装工作"}'
+    - domain:
+        - costom_word1.raw.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"res":"costom_word1"}'
+    - domain:
+        - costom_word.raw.com
+      config:
+        headers:
+          - Content-Type=application/json
+        "body": '{"res":"costom_word"}'
+  url: oci://higress-registry.cn-hangzhou.cr.aliyuncs.com/plugins/go-custom-response:2.0.0
+---
+apiVersion: extensions.higress.io/v1alpha1
+kind: WasmPlugin
+metadata:
+  name: ai-data-masking
+  namespace: higress-system
+spec:
+  priority: 300
+  defaultConfig:
+    system_deny: true
+    deny_openai: true
+    deny_jsonpath:
+      - "$.test[*].test"
+    deny_raw: true
+    deny_code: 200
+    deny_message: "提问或回答中包含敏感词，已被屏蔽"
+    deny_raw_message: '{"errmsg":"提问或回答中包含敏感词，已被屏蔽"}'
+    deny_content_type: "application/json"
+    deny_words:
+      - "costom_word1"
+    replace_roles:
+      - regex: "%{EMAILLOCALPART}@%{HOSTNAME:domain}"
+        type: "replace"
+        restore: true
+        value: "****@$domain"
+      - regex: "%{IP}"
+        type: "replace"
+        restore: true
+        value: "***.***.***.***"
+      - regex: "sk-[0-9a-zA-Z]*"
+        restore: true
+        type: "hash"
+  url: file:///opt/plugins/wasm-rust/extensions/ai-data-masking/plugin.wasm

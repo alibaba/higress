@@ -1,0 +1,1050 @@
+server:
+  name: github-mcp-server
+  config:
+    accessToken: ""
+
+tools:
+- name: create_or_update_file
+  description: 在GitHub仓库创建或更新单个文件
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: path
+    type: string
+    required: true
+    description: "Path where to create/update the file"
+  - name: content
+    type: string
+    required: true
+    description: "Content of the file"
+  - name: message
+    type: string
+    required: true
+    description: "Commit message"
+  - name: branch
+    type: string
+    required: true
+    description: "Branch to create/update the file in"
+  - name: sha
+    type: string
+    required: false
+    description: "SHA of the file being replaced (required when updating existing files)"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/contents/{{.args.path}}"
+    method: PUT
+    body: |
+      {
+        "message": "{{.args.message}}",
+        "content": "{{.args.content | b64enc}}",
+        "branch": "{{.args.branch}}",
+        "sha": "{{.args.sha}}"
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: search_repositories
+  description: 搜索GitHub仓库
+  args:
+  - name: query
+    type: string
+    required: true
+    description: "Search query (see GitHub search syntax)"
+  - name: page
+    type: number
+    required: false
+    description: "Page number for pagination (default: 1)"
+  - name: perPage
+    type: number
+    required: false
+    description: "Number of results per page (default: 30, max: 100)"
+  requestTemplate:
+    url: "https://api.github.com/search/repositories?q={{.args.query}}&page={{.args.page}}&per_page={{.args.perPage}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: create_repository
+  description: 在您的账户中创建新的GitHub仓库
+  args:
+  - name: name
+    type: string
+    required: true
+    description: "Repository name"
+  - name: description
+    type: string
+    required: false
+    description: "Repository description"
+  - name: private
+    type: boolean
+    required: false
+    description: "Whether the repository should be private"
+  - name: autoInit
+    type: boolean
+    required: false
+    description: "Initialize with README.md"
+  requestTemplate:
+    url: "https://api.github.com/user/repos"
+    method: POST
+    body: |
+      {
+        "name": "{{.args.name}}",
+        "description": "{{.args.description}}",
+        "private": {{.args.private}},
+        "auto_init": {{.args.autoInit}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: get_file_contents
+  description: 从GitHub仓库获取文件或目录内容
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: path
+    type: string
+    required: true
+    description: "Path to the file or directory"
+  - name: branch
+    type: string
+    required: false
+    description: "Branch to get contents from"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/contents/{{.args.path}}?ref={{.args.branch}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: push_files
+  description: 在单个提交中推送多个文件到GitHub仓库
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: branch
+    type: string
+    required: true
+    description: "Branch to push to (e.g., 'main' or 'master')"
+  - name: files
+    type: array
+    items:
+      type: object
+      properties:
+        path:
+          type: string
+        content:
+          type: string
+    required: true
+    description: "Array of files to push"
+  - name: message
+    type: string
+    required: true
+    description: "Commit message"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/git/commits"
+    method: POST
+    body: |
+      {
+        "message": "{{.args.message}}",
+        "tree": "{{.args.files | toJson}}",
+        "parents": ["{{.args.branch}}"]
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: create_issue
+  description: 在GitHub仓库创建新Issue
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: title
+    type: string
+    required: true
+    description: "Issue title"
+  - name: body
+    type: string
+    required: false
+    description: "Issue description"
+  - name: assignees
+    type: array
+    items:
+      type: string
+    required: false
+    description: "Usernames to assign"
+  - name: labels
+    type: array
+    items:
+      type: string
+    required: false
+    description: "Labels to add"
+  - name: milestone
+    type: number
+    required: false
+    description: "Milestone number"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/issues"
+    method: POST
+    body: |
+      {
+        "title": "{{.args.title}}",
+        "body": "{{.args.body}}",
+        "assignees": {{.args.assignees | toJson}},
+        "labels": {{.args.labels | toJson}},
+        "milestone": {{.args.milestone}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: create_pull_request
+  description: 在GitHub仓库创建新的Pull Request
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: title
+    type: string
+    required: true
+    description: "Pull request title"
+  - name: body
+    type: string
+    required: false
+    description: "Pull request body/description"
+  - name: head
+    type: string
+    required: true
+    description: "The name of the branch where your changes are implemented"
+  - name: base
+    type: string
+    required: true
+    description: "The name of the branch you want the changes pulled into"
+  - name: draft
+    type: boolean
+    required: false
+    description: "Whether to create the pull request as a draft"
+  - name: maintainer_can_modify
+    type: boolean
+    required: false
+    description: "Whether maintainers can modify the pull request"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls"
+    method: POST
+    body: |
+      {
+        "title": "{{.args.title}}",
+        "body": "{{.args.body}}",
+        "head": "{{.args.head}}",
+        "base": "{{.args.base}}",
+        "draft": {{.args.draft}},
+        "maintainer_can_modify": {{.args.maintainer_can_modify}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: fork_repository
+  description: 将GitHub仓库fork到您的账户或指定组织
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: organization
+    type: string
+    required: false
+    description: "Optional: organization to fork to (defaults to your personal account)"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/forks"
+    method: POST
+    body: |
+      {
+        "organization": "{{.args.organization}}"
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: create_branch
+  description: 在GitHub仓库创建新分支
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: branch
+    type: string
+    required: true
+    description: "Name for the new branch"
+  - name: from_branch
+    type: string
+    required: false
+    description: "Optional: source branch to create from (defaults to the repository's default branch)"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/git/refs"
+    method: POST
+    body: |
+      {
+        "ref": "refs/heads/{{.args.branch}}",
+        "sha": "{{.args.from_branch}}"
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: list_commits
+  description: 获取GitHub仓库分支的提交列表
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: page
+    type: number
+    required: false
+    description: "Page number for pagination"
+  - name: perPage
+    type: number
+    required: false
+    description: "Number of results per page"
+  - name: sha
+    type: string
+    required: false
+    description: "Branch name"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/commits?page={{.args.page}}&per_page={{.args.perPage}}&sha={{.args.sha}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: list_issues
+  description: 列出并过滤GitHub仓库的Issues
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: state
+    type: string
+    required: false
+    description: "Filter by state ('open', 'closed', 'all')"
+  - name: labels
+    type: array
+    items:
+      type: string
+    required: false
+    description: "Filter by labels"
+  - name: sort
+    type: string
+    required: false
+    description: "Sort by ('created', 'updated', 'comments')"
+  - name: direction
+    type: string
+    required: false
+    description: "Sort direction ('asc', 'desc')"
+  - name: since
+    type: string
+    required: false
+    description: "Filter by date (ISO 8601 timestamp)"
+  - name: page
+    type: number
+    required: false
+    description: "Page number"
+  - name: per_page
+    type: number
+    required: false
+    description: "Results per page"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/issues?state={{.args.state}}&labels={{.args.labels | join ','}}&sort={{.args.sort}}&direction={{.args.direction}}&since={{.args.since}}&page={{.args.page}}&per_page={{.args.per_page}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: update_issue
+  description: 更新GitHub仓库中的现有Issue
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: issue_number
+    type: number
+    required: true
+    description: "Issue number to update"
+  - name: title
+    type: string
+    required: false
+    description: "New title"
+  - name: body
+    type: string
+    required: false
+    description: "New description"
+  - name: state
+    type: string
+    required: false
+    description: "New state ('open' or 'closed')"
+  - name: labels
+    type: array
+    items:
+      type: string
+    required: false
+    description: "New labels"
+  - name: assignees
+    type: array
+    items:
+      type: string
+    required: false
+    description: "New assignees"
+  - name: milestone
+    type: number
+    required: false
+    description: "New milestone number"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/issues/{{.args.issue_number}}"
+    method: PATCH
+    body: |
+      {
+        "title": "{{.args.title}}",
+        "body": "{{.args.body}}",
+        "state": "{{.args.state}}",
+        "labels": {{.args.labels | toJson}},
+        "assignees": {{.args.assignees | toJson}},
+        "milestone": {{.args.milestone}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: add_issue_comment
+  description: 在GitHub Issue中添加评论
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: issue_number
+    type: number
+    required: true
+    description: "Issue number to comment on"
+  - name: body
+    type: string
+    required: true
+    description: "Comment text"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/issues/{{.args.issue_number}}/comments"
+    method: POST
+    body: |
+      {
+        "body": "{{.args.body}}"
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: search_code
+  description: 在GitHub仓库中搜索代码
+  args:
+  - name: q
+    type: string
+    required: true
+    description: "Search query using GitHub code search syntax"
+  - name: sort
+    type: string
+    required: false
+    description: "Sort field ('indexed' only)"
+  - name: order
+    type: string
+    required: false
+    description: "Sort order ('asc' or 'desc')"
+  - name: per_page
+    type: number
+    required: false
+    description: "Results per page (max 100)"
+  - name: page
+    type: number
+    required: false
+    description: "Page number"
+  requestTemplate:
+    url: "https://api.github.com/search/code?q={{.args.q}}&sort={{.args.sort}}&order={{.args.order}}&per_page={{.args.per_page}}&page={{.args.page}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: search_issues
+  description: 在GitHub仓库中搜索Issues和Pull Requests
+  args:
+  - name: q
+    type: string
+    required: true
+    description: "Search query using GitHub issues search syntax"
+  - name: sort
+    type: string
+    required: false
+    description: "Sort field (comments, reactions, created, etc.)"
+  - name: order
+    type: string
+    required: false
+    description: "Sort order ('asc' or 'desc')"
+  - name: per_page
+    type: number
+    required: false
+    description: "Results per page (max 100)"
+  - name: page
+    type: number
+    required: false
+    description: "Page number"
+  requestTemplate:
+    url: "https://api.github.com/search/issues?q={{.args.q}}&sort={{.args.sort}}&order={{.args.order}}&per_page={{.args.per_page}}&page={{.args.page}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: search_users
+  description: 在GitHub中搜索用户
+  args:
+  - name: q
+    type: string
+    required: true
+    description: "Search query using GitHub users search syntax"
+  - name: sort
+    type: string
+    required: false
+    description: "Sort field (followers, repositories, joined)"
+  - name: order
+    type: string
+    required: false
+    description: "Sort order ('asc' or 'desc')"
+  - name: per_page
+    type: number
+    required: false
+    description: "Results per page (max 100)"
+  - name: page
+    type: number
+    required: false
+    description: "Page number"
+  requestTemplate:
+    url: "https://api.github.com/search/users?q={{.args.q}}&sort={{.args.sort}}&order={{.args.order}}&per_page={{.args.per_page}}&page={{.args.page}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: get_issue
+  description: 获取GitHub仓库中特定Issue的详细信息
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: issue_number
+    type: number
+    required: true
+    description: "Issue number to retrieve"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/issues/{{.args.issue_number}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: get_pull_request
+  description: 获取GitHub仓库中特定Pull Request的详细信息
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: pull_number
+    type: number
+    required: true
+    description: "Pull request number"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls/{{.args.pull_number}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: list_pull_requests
+  description: 列出并过滤GitHub仓库的Pull Requests
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: state
+    type: string
+    required: false
+    description: "State of the pull requests to return"
+  - name: head
+    type: string
+    required: false
+    description: "Filter by head user or head organization and branch name"
+  - name: base
+    type: string
+    required: false
+    description: "Filter by base branch name"
+  - name: sort
+    type: string
+    required: false
+    description: "What to sort results by"
+  - name: direction
+    type: string
+    required: false
+    description: "The direction of the sort"
+  - name: per_page
+    type: number
+    required: false
+    description: "Results per page (max 100)"
+  - name: page
+    type: number
+    required: false
+    description: "Page number of the results"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls?state={{.args.state}}&head={{.args.head}}&base={{.args.base}}&sort={{.args.sort}}&direction={{.args.direction}}&per_page={{.args.per_page}}&page={{.args.page}}"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: create_pull_request_review
+  description: 在GitHub Pull Request上创建review
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: pull_number
+    type: number
+    required: true
+    description: "Pull request number"
+  - name: commit_id
+    type: string
+    required: false
+    description: "The SHA of the commit that needs a review"
+  - name: body
+    type: string
+    required: true
+    description: "The body text of the review"
+  - name: event
+    type: string
+    required: true
+    description: "The review action to perform"
+  - name: comments
+    type: array
+    items:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "The relative path to the file being commented on"
+        position:
+          type: number
+          description: "The position in the diff where you want to add a review comment"
+        body:
+          type: string
+          description: "Text of the review comment"
+    required: false
+    description: "Comments to post as part of the review (specify either position or line, not both)"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls/{{.args.pull_number}}/reviews"
+    method: POST
+    body: |
+      {
+        "body": "{{.args.body}}",
+        "event": "{{.args.event}}",
+        "commit_id": "{{.args.commit_id}}",
+        "comments": {{.args.comments | toJson}}
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: merge_pull_request
+  description: 合并GitHub Pull Request
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: pull_number
+    type: number
+    required: true
+    description: "Pull request number"
+  - name: commit_title
+    type: string
+    required: false
+    description: "Title for the automatic commit message"
+  - name: commit_message
+    type: string
+    required: false
+    description: "Extra detail to append to automatic commit message"
+  - name: merge_method
+    type: string
+    required: false
+    description: "Merge method to use"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls/{{.args.pull_number}}/merge"
+    method: PUT
+    body: |
+      {
+        "commit_title": "{{.args.commit_title}}",
+        "commit_message": "{{.args.commit_message}}",
+        "merge_method": "{{.args.merge_method}}"
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: get_pull_request_files
+  description: 获取GitHub Pull Request中更改的文件列表
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: pull_number
+    type: number
+    required: true
+    description: "Pull request number"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls/{{.args.pull_number}}/files"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: get_pull_request_status
+  description: 获取GitHub Pull Request的状态检查结果
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: pull_number
+    type: number
+    required: true
+    description: "Pull request number"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls/{{.args.pull_number}}/status"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: update_pull_request_branch
+  description: 使用base分支的最新更改更新Pull Request分支
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: pull_number
+    type: number
+    required: true
+    description: "Pull request number"
+  - name: expected_head_sha
+    type: string
+    required: false
+    description: "The expected SHA of the pull request's HEAD ref"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls/{{.args.pull_number}}/update-branch"
+    method: PUT
+    body: |
+      {
+        "expected_head_sha": "{{.args.expected_head_sha}}"
+      }
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: get_pull_request_comments
+  description: 获取GitHub Pull Request的review评论
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: pull_number
+    type: number
+    required: true
+    description: "Pull request number"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls/{{.args.pull_number}}/comments"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"
+
+- name: get_pull_request_reviews
+  description: 获取GitHub Pull Request的reviews
+  args:
+  - name: owner
+    type: string
+    required: true
+    description: "Repository owner (username or organization)"
+  - name: repo
+    type: string
+    required: true
+    description: "Repository name"
+  - name: pull_number
+    type: number
+    required: true
+    description: "Pull request number"
+  requestTemplate:
+    url: "https://api.github.com/repos/{{.args.owner}}/{{.args.repo}}/pulls/{{.args.pull_number}}/reviews"
+    method: GET
+    headers:
+    - key: Authorization
+      value: "Bearer {{.config.accessToken}}"
+    - key: Accept
+      value: "application/vnd.github+json"
+    - key: X-GitHub-Api-Version
+      value: "2022-11-28"
+    - key: User-Agent
+      value: "higress-mcp"

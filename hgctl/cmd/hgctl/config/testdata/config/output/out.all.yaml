@@ -1,0 +1,1305 @@
+---
+configs:
+- "@type": type.googleapis.com/envoy.admin.v3.BootstrapConfigDump
+  bootstrap:
+    node:
+      user_agent_name: envoy
+      user_agent_build_version:
+        version:
+          major_number: 1
+          minor_number: 26
+        metadata:
+          revision.status: Clean
+          revision.sha: 14111e3c62d3d38b0c921cb7011fd0a94e880aed
+          ssl.version: BoringSSL
+          build.label: dev
+          build.type: RELEASE
+      extensions:
+      - name: envoy.filters.connection_pools.tcp.generic
+        category: envoy.upstreams
+        type_urls:
+        - envoy.extensions.upstreams.tcp.generic.v3.GenericConnectionPoolProto
+      - name: envoy.rate_limit_descriptors.expr
+        category: envoy.rate_limit_descriptors
+        type_urls:
+        - envoy.extensions.rate_limit_descriptors.expr.v3.Descriptor
+      - name: envoy.matching.inputs.destination_ip
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.DestinationIPInput
+      - name: envoy.matching.inputs.destination_port
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.DestinationPortInput
+      - name: envoy.matching.inputs.direct_source_ip
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.DirectSourceIPInput
+      - name: envoy.matching.inputs.dns_san
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.ssl.v3.DnsSanInput
+      - name: envoy.matching.inputs.request_headers
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.type.matcher.v3.HttpRequestHeaderMatchInput
+      - name: envoy.matching.inputs.request_trailers
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.type.matcher.v3.HttpRequestTrailerMatchInput
+      - name: envoy.matching.inputs.response_headers
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.type.matcher.v3.HttpResponseHeaderMatchInput
+      - name: envoy.matching.inputs.response_trailers
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.type.matcher.v3.HttpResponseTrailerMatchInput
+      - name: envoy.matching.inputs.server_name
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.ServerNameInput
+      - name: envoy.matching.inputs.source_ip
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.SourceIPInput
+      - name: envoy.matching.inputs.source_port
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.SourcePortInput
+      - name: envoy.matching.inputs.source_type
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.SourceTypeInput
+      - name: envoy.matching.inputs.status_code_class_input
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.type.matcher.v3.HttpResponseStatusCodeClassMatchInput
+      - name: envoy.matching.inputs.status_code_input
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.type.matcher.v3.HttpResponseStatusCodeMatchInput
+      - name: envoy.matching.inputs.subject
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.ssl.v3.SubjectInput
+      - name: envoy.matching.inputs.uri_san
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.ssl.v3.UriSanInput
+      - name: query_params
+        category: envoy.matching.http.input
+        type_urls:
+        - envoy.type.matcher.v3.HttpRequestQueryParamMatchInput
+      - name: envoy.tls.cert_validator.default
+        category: envoy.tls.cert_validator
+      - name: envoy.tls.cert_validator.spiffe
+        category: envoy.tls.cert_validator
+      - name: envoy.path.match.uri_template.uri_template_matcher
+        category: envoy.path.match
+        type_urls:
+        - envoy.extensions.path.match.uri_template.v3.UriTemplateMatchConfig
+      - name: envoy.http.original_ip_detection.custom_header
+        category: envoy.http.original_ip_detection
+        type_urls:
+        - envoy.extensions.http.original_ip_detection.custom_header.v3.CustomHeaderConfig
+      - name: envoy.http.original_ip_detection.xff
+        category: envoy.http.original_ip_detection
+        type_urls:
+        - envoy.extensions.http.original_ip_detection.xff.v3.XffConfig
+      - name: envoy.buffer
+        category: envoy.filters.http.upstream
+      - name: envoy.filters.http.admission_control
+        category: envoy.filters.http.upstream
+        type_urls:
+        - envoy.extensions.filters.http.admission_control.v3.AdmissionControl
+      - name: envoy.filters.http.buffer
+        category: envoy.filters.http.upstream
+        type_urls:
+        - envoy.extensions.filters.http.buffer.v3.Buffer
+        - envoy.extensions.filters.http.buffer.v3.BufferPerRoute
+      - name: envoy.filters.http.upstream_codec
+        category: envoy.filters.http.upstream
+        type_urls:
+        - envoy.extensions.filters.http.upstream_codec.v3.UpstreamCodec
+      - name: envoy.route.early_data_policy.default
+        category: envoy.route.early_data_policy
+        type_urls:
+        - envoy.extensions.early_data.v3.DefaultEarlyDataPolicy
+      - name: envoy.compression.brotli.compressor
+        category: envoy.compression.compressor
+        type_urls:
+        - envoy.extensions.compression.brotli.compressor.v3.Brotli
+      - name: envoy.compression.gzip.compressor
+        category: envoy.compression.compressor
+        type_urls:
+        - envoy.extensions.compression.gzip.compressor.v3.Gzip
+      - name: envoy.compression.zstd.compressor
+        category: envoy.compression.compressor
+        type_urls:
+        - envoy.extensions.compression.zstd.compressor.v3.Zstd
+      - name: envoy.compression.brotli.decompressor
+        category: envoy.compression.decompressor
+        type_urls:
+        - envoy.extensions.compression.brotli.decompressor.v3.Brotli
+      - name: envoy.compression.gzip.decompressor
+        category: envoy.compression.decompressor
+        type_urls:
+        - envoy.extensions.compression.gzip.decompressor.v3.Gzip
+      - name: envoy.compression.zstd.decompressor
+        category: envoy.compression.decompressor
+        type_urls:
+        - envoy.extensions.compression.zstd.decompressor.v3.Zstd
+      - name: envoy.wasm.runtime.null
+        category: envoy.wasm.runtime
+      - name: envoy.wasm.runtime.v8
+        category: envoy.wasm.runtime
+      - name: envoy.dog_statsd
+        category: envoy.stats_sinks
+      - name: envoy.graphite_statsd
+        category: envoy.stats_sinks
+      - name: envoy.metrics_service
+        category: envoy.stats_sinks
+      - name: envoy.stat_sinks.dog_statsd
+        category: envoy.stats_sinks
+        type_urls:
+        - envoy.config.metrics.v3.DogStatsdSink
+      - name: envoy.stat_sinks.graphite_statsd
+        category: envoy.stats_sinks
+        type_urls:
+        - envoy.extensions.stat_sinks.graphite_statsd.v3.GraphiteStatsdSink
+      - name: envoy.stat_sinks.hystrix
+        category: envoy.stats_sinks
+        type_urls:
+        - envoy.config.metrics.v3.HystrixSink
+      - name: envoy.stat_sinks.metrics_service
+        category: envoy.stats_sinks
+        type_urls:
+        - envoy.config.metrics.v3.MetricsServiceConfig
+      - name: envoy.stat_sinks.statsd
+        category: envoy.stats_sinks
+        type_urls:
+        - envoy.config.metrics.v3.StatsdSink
+      - name: envoy.stat_sinks.wasm
+        category: envoy.stats_sinks
+        type_urls:
+        - envoy.extensions.stat_sinks.wasm.v3.Wasm
+      - name: envoy.statsd
+        category: envoy.stats_sinks
+      - name: envoy.path.rewrite.uri_template.uri_template_rewriter
+        category: envoy.path.rewrite
+        type_urls:
+        - envoy.extensions.path.rewrite.uri_template.v3.UriTemplateRewriteConfig
+      - name: envoy.extensions.http.custom_response.local_response_policy
+        category: envoy.http.custom_response
+        type_urls:
+        - envoy.extensions.http.custom_response.local_response_policy.v3.LocalResponsePolicy
+      - name: envoy.extensions.http.custom_response.redirect_policy
+        category: envoy.http.custom_response
+        type_urls:
+        - envoy.extensions.http.custom_response.redirect_policy.v3.RedirectPolicy
+      - name: envoy.matching.actions.format_string
+        category: envoy.matching.action
+        type_urls:
+        - envoy.config.core.v3.SubstitutionFormatString
+      - name: filter-chain-name
+        category: envoy.matching.action
+        type_urls:
+        - google.protobuf.StringValue
+      - name: envoy.quic.deterministic_connection_id_generator
+        category: envoy.quic.connection_id_generator
+        type_urls:
+        - envoy.extensions.quic.connection_id_generator.v3.DeterministicConnectionIdGeneratorConfig
+      - name: envoy.network.dns_resolver.cares
+        category: envoy.network.dns_resolver
+        type_urls:
+        - envoy.extensions.network.dns_resolver.cares.v3.CaresDnsResolverConfig
+      - name: envoy.network.dns_resolver.getaddrinfo
+        category: envoy.network.dns_resolver
+        type_urls:
+        - envoy.extensions.network.dns_resolver.getaddrinfo.v3.GetAddrInfoDnsResolverConfig
+      - name: envoy.bootstrap.internal_listener
+        category: envoy.bootstrap
+        type_urls:
+        - envoy.extensions.bootstrap.internal_listener.v3.InternalListener
+      - name: envoy.bootstrap.wasm
+        category: envoy.bootstrap
+        type_urls:
+        - envoy.extensions.wasm.v3.WasmService
+      - name: envoy.extensions.network.socket_interface.default_socket_interface
+        category: envoy.bootstrap
+        type_urls:
+        - envoy.extensions.network.socket_interface.v3.DefaultSocketInterface
+      - name: envoy.filters.listener.http_inspector
+        category: envoy.filters.listener
+        type_urls:
+        - envoy.extensions.filters.listener.http_inspector.v3.HttpInspector
+      - name: envoy.filters.listener.original_dst
+        category: envoy.filters.listener
+        type_urls:
+        - envoy.extensions.filters.listener.original_dst.v3.OriginalDst
+      - name: envoy.filters.listener.original_src
+        category: envoy.filters.listener
+        type_urls:
+        - envoy.extensions.filters.listener.original_src.v3.OriginalSrc
+      - name: envoy.filters.listener.proxy_protocol
+        category: envoy.filters.listener
+        type_urls:
+        - envoy.extensions.filters.listener.proxy_protocol.v3.ProxyProtocol
+      - name: envoy.filters.listener.tls_inspector
+        category: envoy.filters.listener
+        type_urls:
+        - envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
+      - name: envoy.listener.http_inspector
+        category: envoy.filters.listener
+      - name: envoy.listener.original_dst
+        category: envoy.filters.listener
+      - name: envoy.listener.original_src
+        category: envoy.filters.listener
+      - name: envoy.listener.proxy_protocol
+        category: envoy.filters.listener
+      - name: envoy.listener.tls_inspector
+        category: envoy.filters.listener
+      - name: envoy.matching.common_inputs.environment_variable
+        category: envoy.matching.common_inputs
+        type_urls:
+        - envoy.extensions.matching.common_inputs.environment_variable.v3.Config
+      - name: envoy.matching.matchers.consistent_hashing
+        category: envoy.matching.input_matchers
+        type_urls:
+        - envoy.extensions.matching.input_matchers.consistent_hashing.v3.ConsistentHashing
+      - name: envoy.matching.matchers.ip
+        category: envoy.matching.input_matchers
+        type_urls:
+        - envoy.extensions.matching.input_matchers.ip.v3.Ip
+      - name: envoy.grpc_credentials.aws_iam
+        category: envoy.grpc_credentials
+      - name: envoy.grpc_credentials.default
+        category: envoy.grpc_credentials
+      - name: envoy.grpc_credentials.file_based_metadata
+        category: envoy.grpc_credentials
+      - name: envoy.request_id.uuid
+        category: envoy.request_id
+        type_urls:
+        - envoy.extensions.request_id.uuid.v3.UuidRequestIdConfig
+      - name: envoy.load_balancing_policies.least_request
+        category: envoy.load_balancing_policies
+        type_urls:
+        - envoy.extensions.load_balancing_policies.least_request.v3.LeastRequest
+      - name: envoy.load_balancing_policies.maglev
+        category: envoy.load_balancing_policies
+        type_urls:
+        - envoy.extensions.load_balancing_policies.maglev.v3.Maglev
+      - name: envoy.load_balancing_policies.random
+        category: envoy.load_balancing_policies
+        type_urls:
+        - envoy.extensions.load_balancing_policies.random.v3.Random
+      - name: envoy.load_balancing_policies.ring_hash
+        category: envoy.load_balancing_policies
+        type_urls:
+        - envoy.extensions.load_balancing_policies.ring_hash.v3.RingHash
+      - name: envoy.load_balancing_policies.round_robin
+        category: envoy.load_balancing_policies
+        type_urls:
+        - envoy.extensions.load_balancing_policies.round_robin.v3.RoundRobin
+      - name: envoy.ip
+        category: envoy.resolvers
+      - name: envoy.bandwidth_limit
+        category: envoy.filters.http
+      - name: envoy.buffer
+        category: envoy.filters.http
+      - name: envoy.cors
+        category: envoy.filters.http
+      - name: envoy.csrf
+        category: envoy.filters.http
+      - name: envoy.ext_authz
+        category: envoy.filters.http
+      - name: envoy.ext_proc
+        category: envoy.filters.http
+      - name: envoy.fault
+        category: envoy.filters.http
+      - name: envoy.filters.http.adaptive_concurrency
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.adaptive_concurrency.v3.AdaptiveConcurrency
+      - name: envoy.filters.http.admission_control
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.admission_control.v3.AdmissionControl
+      - name: envoy.filters.http.alternate_protocols_cache
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.alternate_protocols_cache.v3.FilterConfig
+      - name: envoy.filters.http.aws_lambda
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.aws_lambda.v3.Config
+        - envoy.extensions.filters.http.aws_lambda.v3.PerRouteConfig
+      - name: envoy.filters.http.aws_request_signing
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.aws_request_signing.v3.AwsRequestSigning
+      - name: envoy.filters.http.bandwidth_limit
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.bandwidth_limit.v3.BandwidthLimit
+      - name: envoy.filters.http.buffer
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.buffer.v3.Buffer
+        - envoy.extensions.filters.http.buffer.v3.BufferPerRoute
+      - name: envoy.filters.http.cache
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.cache.v3.CacheConfig
+      - name: envoy.filters.http.cdn_loop
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.cdn_loop.v3.CdnLoopConfig
+      - name: envoy.filters.http.composite
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.composite.v3.Composite
+      - name: envoy.filters.http.compressor
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.compressor.v3.Compressor
+        - envoy.extensions.filters.http.compressor.v3.CompressorPerRoute
+      - name: envoy.filters.http.connect_grpc_bridge
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.connect_grpc_bridge.v3.FilterConfig
+      - name: envoy.filters.http.cors
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.cors.v3.Cors
+        - envoy.extensions.filters.http.cors.v3.CorsPolicy
+      - name: envoy.filters.http.csrf
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.csrf.v3.CsrfPolicy
+      - name: envoy.filters.http.custom_response
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.custom_response.v3.CustomResponse
+      - name: envoy.filters.http.decompressor
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.decompressor.v3.Decompressor
+      - name: envoy.filters.http.dynamic_forward_proxy
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.dynamic_forward_proxy.v3.FilterConfig
+        - envoy.extensions.filters.http.dynamic_forward_proxy.v3.PerRouteConfig
+      - name: envoy.filters.http.ext_authz
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
+        - envoy.extensions.filters.http.ext_authz.v3.ExtAuthzPerRoute
+      - name: envoy.filters.http.ext_proc
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.ext_proc.v3.ExtProcPerRoute
+        - envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+      - name: envoy.filters.http.fault
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.fault.v3.HTTPFault
+      - name: envoy.filters.http.file_system_buffer
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.file_system_buffer.v3.FileSystemBufferFilterConfig
+      - name: envoy.filters.http.gcp_authn
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.gcp_authn.v3.GcpAuthnFilterConfig
+      - name: envoy.filters.http.grpc_http1_bridge
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.grpc_http1_bridge.v3.Config
+      - name: envoy.filters.http.grpc_http1_reverse_bridge
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.grpc_http1_reverse_bridge.v3.FilterConfig
+        - envoy.extensions.filters.http.grpc_http1_reverse_bridge.v3.FilterConfigPerRoute
+      - name: envoy.filters.http.grpc_json_transcoder
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.grpc_json_transcoder.v3.GrpcJsonTranscoder
+      - name: envoy.filters.http.grpc_stats
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.grpc_stats.v3.FilterConfig
+      - name: envoy.filters.http.grpc_web
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.grpc_web.v3.GrpcWeb
+      - name: envoy.filters.http.header_to_metadata
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.header_to_metadata.v3.Config
+      - name: envoy.filters.http.health_check
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.health_check.v3.HealthCheck
+      - name: envoy.filters.http.ip_tagging
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.ip_tagging.v3.IPTagging
+      - name: envoy.filters.http.jwt_authn
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+        - envoy.extensions.filters.http.jwt_authn.v3.PerRouteConfig
+      - name: envoy.filters.http.local_ratelimit
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit
+      - name: envoy.filters.http.lua
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.lua.v3.Lua
+        - envoy.extensions.filters.http.lua.v3.LuaPerRoute
+      - name: envoy.filters.http.match_delegate
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.common.matching.v3.ExtensionWithMatcher
+      - name: envoy.filters.http.oauth2
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.oauth2.v3.OAuth2
+      - name: envoy.filters.http.on_demand
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.on_demand.v3.OnDemand
+        - envoy.extensions.filters.http.on_demand.v3.PerRouteConfig
+      - name: envoy.filters.http.original_src
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.original_src.v3.OriginalSrc
+      - name: envoy.filters.http.rate_limit_quota
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.rate_limit_quota.v3.RateLimitQuotaFilterConfig
+        - envoy.extensions.filters.http.rate_limit_quota.v3.RateLimitQuotaOverride
+      - name: envoy.filters.http.ratelimit
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.ratelimit.v3.RateLimit
+        - envoy.extensions.filters.http.ratelimit.v3.RateLimitPerRoute
+      - name: envoy.filters.http.rbac
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.rbac.v3.RBAC
+        - envoy.extensions.filters.http.rbac.v3.RBACPerRoute
+      - name: envoy.filters.http.router
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.router.v3.Router
+      - name: envoy.filters.http.set_metadata
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.set_metadata.v3.Config
+      - name: envoy.filters.http.stateful_session
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.stateful_session.v3.StatefulSession
+        - envoy.extensions.filters.http.stateful_session.v3.StatefulSessionPerRoute
+      - name: envoy.filters.http.tap
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.tap.v3.Tap
+      - name: envoy.filters.http.wasm
+        category: envoy.filters.http
+        type_urls:
+        - envoy.extensions.filters.http.wasm.v3.Wasm
+      - name: envoy.grpc_http1_bridge
+        category: envoy.filters.http
+      - name: envoy.grpc_json_transcoder
+        category: envoy.filters.http
+      - name: envoy.grpc_web
+        category: envoy.filters.http
+      - name: envoy.health_check
+        category: envoy.filters.http
+      - name: envoy.ip_tagging
+        category: envoy.filters.http
+      - name: envoy.local_rate_limit
+        category: envoy.filters.http
+      - name: envoy.lua
+        category: envoy.filters.http
+      - name: envoy.rate_limit
+        category: envoy.filters.http
+      - name: envoy.router
+        category: envoy.filters.http
+      - name: envoy.access_loggers.file
+        category: envoy.access_loggers
+        type_urls:
+        - envoy.extensions.access_loggers.file.v3.FileAccessLog
+      - name: envoy.access_loggers.http_grpc
+        category: envoy.access_loggers
+        type_urls:
+        - envoy.extensions.access_loggers.grpc.v3.HttpGrpcAccessLogConfig
+      - name: envoy.access_loggers.open_telemetry
+        category: envoy.access_loggers
+        type_urls:
+        - envoy.extensions.access_loggers.open_telemetry.v3.OpenTelemetryAccessLogConfig
+      - name: envoy.access_loggers.stderr
+        category: envoy.access_loggers
+        type_urls:
+        - envoy.extensions.access_loggers.stream.v3.StderrAccessLog
+      - name: envoy.access_loggers.stdout
+        category: envoy.access_loggers
+        type_urls:
+        - envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+      - name: envoy.access_loggers.tcp_grpc
+        category: envoy.access_loggers
+        type_urls:
+        - envoy.extensions.access_loggers.grpc.v3.TcpGrpcAccessLogConfig
+      - name: envoy.access_loggers.wasm
+        category: envoy.access_loggers
+        type_urls:
+        - envoy.extensions.access_loggers.wasm.v3.WasmAccessLog
+      - name: envoy.file_access_log
+        category: envoy.access_loggers
+      - name: envoy.http_grpc_access_log
+        category: envoy.access_loggers
+      - name: envoy.open_telemetry_access_log
+        category: envoy.access_loggers
+      - name: envoy.stderr_access_log
+        category: envoy.access_loggers
+      - name: envoy.stdout_access_log
+        category: envoy.access_loggers
+      - name: envoy.tcp_grpc_access_log
+        category: envoy.access_loggers
+      - name: envoy.wasm_access_log
+        category: envoy.access_loggers
+      - name: envoy.config.validators.minimum_clusters
+        category: envoy.config.validators
+      - name: envoy.config.validators.minimum_clusters_validator
+        category: envoy.config.validators
+        type_urls:
+        - envoy.extensions.config.validators.minimum_clusters.v3.MinimumClustersValidator
+      - name: envoy.http.header_validators.envoy_default
+        category: envoy.http.header_validators
+        type_urls:
+        - envoy.extensions.http.header_validators.envoy_default.v3.HeaderValidatorConfig
+      - name: dubbo.hessian2
+        category: envoy.dubbo_proxy.serializers
+      - name: quic.http_server_connection.default
+        category: quic.http_server_connection
+      - name: envoy.transport_sockets.alts
+        category: envoy.transport_sockets.downstream
+        type_urls:
+        - envoy.extensions.transport_sockets.alts.v3.Alts
+      - name: envoy.transport_sockets.quic
+        category: envoy.transport_sockets.downstream
+        type_urls:
+        - envoy.extensions.transport_sockets.quic.v3.QuicDownstreamTransport
+      - name: envoy.transport_sockets.raw_buffer
+        category: envoy.transport_sockets.downstream
+        type_urls:
+        - envoy.extensions.transport_sockets.raw_buffer.v3.RawBuffer
+      - name: envoy.transport_sockets.starttls
+        category: envoy.transport_sockets.downstream
+        type_urls:
+        - envoy.extensions.transport_sockets.starttls.v3.StartTlsConfig
+      - name: envoy.transport_sockets.tap
+        category: envoy.transport_sockets.downstream
+        type_urls:
+        - envoy.extensions.transport_sockets.tap.v3.Tap
+      - name: envoy.transport_sockets.tcp_stats
+        category: envoy.transport_sockets.downstream
+        type_urls:
+        - envoy.extensions.transport_sockets.tcp_stats.v3.Config
+      - name: envoy.transport_sockets.tls
+        category: envoy.transport_sockets.downstream
+        type_urls:
+        - envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+      - name: raw_buffer
+        category: envoy.transport_sockets.downstream
+      - name: starttls
+        category: envoy.transport_sockets.downstream
+      - name: tls
+        category: envoy.transport_sockets.downstream
+      - name: envoy.rbac.matchers.upstream_ip_port
+        category: envoy.rbac.matchers
+        type_urls:
+        - envoy.extensions.rbac.matchers.upstream_ip_port.v3.UpstreamIpPortMatcher
+      - name: envoy.key_value.file_based
+        category: envoy.common.key_value
+        type_urls:
+        - envoy.extensions.key_value.file_based.v3.FileBasedKeyValueStoreConfig
+      - name: envoy.matching.inputs.application_protocol
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.ApplicationProtocolInput
+      - name: envoy.matching.inputs.destination_ip
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.DestinationIPInput
+      - name: envoy.matching.inputs.destination_port
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.DestinationPortInput
+      - name: envoy.matching.inputs.direct_source_ip
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.DirectSourceIPInput
+      - name: envoy.matching.inputs.dns_san
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.ssl.v3.DnsSanInput
+      - name: envoy.matching.inputs.server_name
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.ServerNameInput
+      - name: envoy.matching.inputs.source_ip
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.SourceIPInput
+      - name: envoy.matching.inputs.source_port
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.SourcePortInput
+      - name: envoy.matching.inputs.source_type
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.SourceTypeInput
+      - name: envoy.matching.inputs.subject
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.ssl.v3.SubjectInput
+      - name: envoy.matching.inputs.transport_protocol
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.network.v3.TransportProtocolInput
+      - name: envoy.matching.inputs.uri_san
+        category: envoy.matching.network.input
+        type_urls:
+        - envoy.extensions.matching.common_inputs.ssl.v3.UriSanInput
+      - name: dubbo
+        category: envoy.dubbo_proxy.protocols
+      - name: envoy.watchdog.abort_action
+        category: envoy.guarddog_actions
+        type_urls:
+        - envoy.watchdog.v3.AbortActionConfig
+      - name: envoy.watchdog.profile_action
+        category: envoy.guarddog_actions
+        type_urls:
+        - envoy.extensions.watchdog.profile_action.v3.ProfileActionConfig
+      - name: envoy.quic.crypto_stream.server.quiche
+        category: envoy.quic.server.crypto_stream
+        type_urls:
+        - envoy.extensions.quic.crypto_stream.v3.CryptoServerStreamConfig
+      - name: envoy.regex_engines.google_re2
+        category: envoy.regex_engines
+        type_urls:
+        - envoy.extensions.regex_engines.v3.GoogleRE2
+      - name: envoy.http.stateful_session.cookie
+        category: envoy.http.stateful_session
+        type_urls:
+        - envoy.extensions.http.stateful_session.cookie.v3.CookieBasedSessionState
+      - name: envoy.http.stateful_session.header
+        category: envoy.http.stateful_session
+        type_urls:
+        - envoy.extensions.http.stateful_session.header.v3.HeaderBasedSessionState
+      - name: envoy.matching.custom_matchers.trie_matcher
+        category: envoy.matching.network.custom_matchers
+        type_urls:
+        - xds.type.matcher.v3.IPMatcher
+      - name: envoy.udp_packet_writer.default
+        category: envoy.udp_packet_writer
+        type_urls:
+        - envoy.extensions.udp_packet_writer.v3.UdpDefaultWriterFactory
+      - name: envoy.udp_packet_writer.gso
+        category: envoy.udp_packet_writer
+        type_urls:
+        - envoy.extensions.udp_packet_writer.v3.UdpGsoBatchWriterFactory
+      - name: envoy.quic.proof_source.filter_chain
+        category: envoy.quic.proof_source
+        type_urls:
+        - envoy.extensions.quic.proof_source.v3.ProofSourceConfig
+      - name: envoy.resource_monitors.fixed_heap
+        category: envoy.resource_monitors
+        type_urls:
+        - envoy.extensions.resource_monitors.fixed_heap.v3.FixedHeapConfig
+      - name: envoy.resource_monitors.injected_resource
+        category: envoy.resource_monitors
+        type_urls:
+        - envoy.extensions.resource_monitors.injected_resource.v3.InjectedResourceConfig
+      - name: envoy.http.stateful_header_formatters.preserve_case
+        category: envoy.http.stateful_header_formatters
+        type_urls:
+        - envoy.extensions.http.header_formatters.preserve_case.v3.PreserveCaseFormatterConfig
+      - name: preserve_case
+        category: envoy.http.stateful_header_formatters
+      - name: envoy.filters.thrift.header_to_metadata
+        category: envoy.thrift_proxy.filters
+        type_urls:
+        - envoy.extensions.filters.network.thrift_proxy.filters.header_to_metadata.v3.HeaderToMetadata
+      - name: envoy.filters.thrift.payload_to_metadata
+        category: envoy.thrift_proxy.filters
+        type_urls:
+        - envoy.extensions.filters.network.thrift_proxy.filters.payload_to_metadata.v3.PayloadToMetadata
+      - name: envoy.filters.thrift.rate_limit
+        category: envoy.thrift_proxy.filters
+        type_urls:
+        - envoy.extensions.filters.network.thrift_proxy.filters.ratelimit.v3.RateLimit
+      - name: envoy.filters.thrift.router
+        category: envoy.thrift_proxy.filters
+        type_urls:
+        - envoy.extensions.filters.network.thrift_proxy.router.v3.Router
+      - name: envoy.tracers.datadog
+        category: envoy.tracers
+        type_urls:
+        - envoy.config.trace.v3.DatadogConfig
+      - name: envoy.tracers.dynamic_ot
+        category: envoy.tracers
+        type_urls:
+        - envoy.config.trace.v3.DynamicOtConfig
+      - name: envoy.tracers.opencensus
+        category: envoy.tracers
+        type_urls:
+        - envoy.config.trace.v3.OpenCensusConfig
+      - name: envoy.tracers.opentelemetry
+        category: envoy.tracers
+        type_urls:
+        - envoy.config.trace.v3.OpenTelemetryConfig
+      - name: envoy.tracers.skywalking
+        category: envoy.tracers
+        type_urls:
+        - envoy.config.trace.v3.SkyWalkingConfig
+      - name: envoy.tracers.xray
+        category: envoy.tracers
+        type_urls:
+        - envoy.config.trace.v3.XRayConfig
+      - name: envoy.tracers.zipkin
+        category: envoy.tracers
+        type_urls:
+        - envoy.config.trace.v3.ZipkinConfig
+      - name: envoy.zipkin
+        category: envoy.tracers
+      - name: envoy.retry_priorities.previous_priorities
+        category: envoy.retry_priorities
+        type_urls:
+        - envoy.extensions.retry.priority.previous_priorities.v3.PreviousPrioritiesConfig
+      - name: envoy.http.early_header_mutation.header_mutation
+        category: envoy.http.early_header_mutation
+        type_urls:
+        - envoy.extensions.http.early_header_mutation.header_mutation.v3.HeaderMutation
+      - name: envoy.connection_handler.default
+        category: envoy.connection_handler
+      - name: envoy.transport_sockets.alts
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.alts.v3.Alts
+      - name: envoy.transport_sockets.http_11_proxy
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.http_11_proxy.v3.Http11ProxyUpstreamTransport
+      - name: envoy.transport_sockets.internal_upstream
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.internal_upstream.v3.InternalUpstreamTransport
+      - name: envoy.transport_sockets.quic
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.quic.v3.QuicUpstreamTransport
+      - name: envoy.transport_sockets.raw_buffer
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.raw_buffer.v3.RawBuffer
+      - name: envoy.transport_sockets.starttls
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.starttls.v3.UpstreamStartTlsConfig
+      - name: envoy.transport_sockets.tap
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.tap.v3.Tap
+      - name: envoy.transport_sockets.tcp_stats
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.tcp_stats.v3.Config
+      - name: envoy.transport_sockets.tls
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+      - name: envoy.transport_sockets.upstream_proxy_protocol
+        category: envoy.transport_sockets.upstream
+        type_urls:
+        - envoy.extensions.transport_sockets.proxy_protocol.v3.ProxyProtocolUpstreamTransport
+      - name: raw_buffer
+        category: envoy.transport_sockets.upstream
+      - name: starttls
+        category: envoy.transport_sockets.upstream
+      - name: tls
+        category: envoy.transport_sockets.upstream
+      - name: auto
+        category: envoy.thrift_proxy.transports
+      - name: framed
+        category: envoy.thrift_proxy.transports
+      - name: header
+        category: envoy.thrift_proxy.transports
+      - name: unframed
+        category: envoy.thrift_proxy.transports
+      - name: envoy.cluster.eds
+        category: envoy.clusters
+      - name: envoy.cluster.logical_dns
+        category: envoy.clusters
+      - name: envoy.cluster.original_dst
+        category: envoy.clusters
+      - name: envoy.cluster.static
+        category: envoy.clusters
+      - name: envoy.cluster.strict_dns
+        category: envoy.clusters
+      - name: envoy.clusters.aggregate
+        category: envoy.clusters
+      - name: envoy.clusters.dynamic_forward_proxy
+        category: envoy.clusters
+      - name: envoy.clusters.redis
+        category: envoy.clusters
+      - name: envoy.access_loggers.extension_filters.cel
+        category: envoy.access_loggers.extension_filters
+        type_urls:
+        - envoy.extensions.access_loggers.filters.cel.v3.ExpressionFilter
+      - name: auto
+        category: envoy.thrift_proxy.protocols
+      - name: binary
+        category: envoy.thrift_proxy.protocols
+      - name: binary/non-strict
+        category: envoy.thrift_proxy.protocols
+      - name: compact
+        category: envoy.thrift_proxy.protocols
+      - name: twitter
+        category: envoy.thrift_proxy.protocols
+      - name: envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+        category: envoy.upstream_options
+        type_urls:
+        - envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+      - name: envoy.extensions.upstreams.tcp.v3.TcpProtocolOptions
+        category: envoy.upstream_options
+        type_urls:
+        - envoy.extensions.upstreams.tcp.v3.TcpProtocolOptions
+      - name: envoy.upstreams.http.http_protocol_options
+        category: envoy.upstream_options
+      - name: envoy.upstreams.tcp.tcp_protocol_options
+        category: envoy.upstream_options
+      - name: envoy.listener_manager_impl.default
+        category: envoy.listener_manager_impl
+        type_urls:
+        - envoy.config.listener.v3.ListenerManager
+      - name: default
+        category: network.connection.client
+      - name: envoy_internal
+        category: network.connection.client
+      - name: envoy.filters.udp.dns_filter
+        category: envoy.filters.udp_listener
+        type_urls:
+        - envoy.extensions.filters.udp.dns_filter.v3.DnsFilterConfig
+      - name: envoy.filters.udp_listener.udp_proxy
+        category: envoy.filters.udp_listener
+        type_urls:
+        - envoy.extensions.filters.udp.udp_proxy.v3.UdpProxyConfig
+      - name: envoy.extensions.http.cache.file_system_http_cache
+        category: envoy.http.cache
+        type_urls:
+        - envoy.extensions.http.cache.file_system_http_cache.v3.FileSystemHttpCacheConfig
+      - name: envoy.extensions.http.cache.simple
+        category: envoy.http.cache
+        type_urls:
+        - envoy.extensions.http.cache.simple_http_cache.v3.SimpleHttpCacheConfig
+      - name: envoy.retry_host_predicates.omit_canary_hosts
+        category: envoy.retry_host_predicates
+        type_urls:
+        - envoy.extensions.retry.host.omit_canary_hosts.v3.OmitCanaryHostsPredicate
+      - name: envoy.retry_host_predicates.omit_host_metadata
+        category: envoy.retry_host_predicates
+        type_urls:
+        - envoy.extensions.retry.host.omit_host_metadata.v3.OmitHostMetadataConfig
+      - name: envoy.retry_host_predicates.previous_hosts
+        category: envoy.retry_host_predicates
+        type_urls:
+        - envoy.extensions.retry.host.previous_hosts.v3.PreviousHostsPredicate
+      - name: envoy.formatter.metadata
+        category: envoy.formatter
+        type_urls:
+        - envoy.extensions.formatter.metadata.v3.Metadata
+      - name: envoy.formatter.req_without_query
+        category: envoy.formatter
+        type_urls:
+        - envoy.extensions.formatter.req_without_query.v3.ReqWithoutQuery
+      - name: envoy.internal_redirect_predicates.allow_listed_routes
+        category: envoy.internal_redirect_predicates
+        type_urls:
+        - envoy.extensions.internal_redirect.allow_listed_routes.v3.AllowListedRoutesConfig
+      - name: envoy.internal_redirect_predicates.previous_routes
+        category: envoy.internal_redirect_predicates
+        type_urls:
+        - envoy.extensions.internal_redirect.previous_routes.v3.PreviousRoutesConfig
+      - name: envoy.internal_redirect_predicates.safe_cross_scheme
+        category: envoy.internal_redirect_predicates
+        type_urls:
+        - envoy.extensions.internal_redirect.safe_cross_scheme.v3.SafeCrossSchemeConfig
+      - name: envoy.matching.custom_matchers.trie_matcher
+        category: envoy.matching.http.custom_matchers
+        type_urls:
+        - xds.type.matcher.v3.IPMatcher
+      - name: envoy.filters.dubbo.router
+        category: envoy.dubbo_proxy.filters
+        type_urls:
+        - envoy.extensions.filters.network.dubbo_proxy.router.v3.Router
+      - name: envoy.echo
+        category: envoy.filters.network
+      - name: envoy.ext_authz
+        category: envoy.filters.network
+      - name: envoy.filters.network.connection_limit
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.connection_limit.v3.ConnectionLimit
+      - name: envoy.filters.network.direct_response
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.direct_response.v3.Config
+      - name: envoy.filters.network.dubbo_proxy
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.dubbo_proxy.v3.DubboProxy
+      - name: envoy.filters.network.echo
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.echo.v3.Echo
+      - name: envoy.filters.network.ext_authz
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.ext_authz.v3.ExtAuthz
+      - name: envoy.filters.network.http_connection_manager
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+      - name: envoy.filters.network.local_ratelimit
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.local_ratelimit.v3.LocalRateLimit
+      - name: envoy.filters.network.mongo_proxy
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.mongo_proxy.v3.MongoProxy
+      - name: envoy.filters.network.ratelimit
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.ratelimit.v3.RateLimit
+      - name: envoy.filters.network.rbac
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.rbac.v3.RBAC
+      - name: envoy.filters.network.redis_proxy
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.redis_proxy.v3.RedisProxy
+      - name: envoy.filters.network.sni_cluster
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.sni_cluster.v3.SniCluster
+      - name: envoy.filters.network.sni_dynamic_forward_proxy
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.sni_dynamic_forward_proxy.v3.FilterConfig
+      - name: envoy.filters.network.tcp_proxy
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+      - name: envoy.filters.network.thrift_proxy
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.thrift_proxy.v3.ThriftProxy
+      - name: envoy.filters.network.wasm
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.wasm.v3.Wasm
+      - name: envoy.filters.network.zookeeper_proxy
+        category: envoy.filters.network
+        type_urls:
+        - envoy.extensions.filters.network.zookeeper_proxy.v3.ZooKeeperProxy
+      - name: envoy.http_connection_manager
+        category: envoy.filters.network
+      - name: envoy.mongo_proxy
+        category: envoy.filters.network
+      - name: envoy.ratelimit
+        category: envoy.filters.network
+      - name: envoy.redis_proxy
+        category: envoy.filters.network
+      - name: envoy.tcp_proxy
+        category: envoy.filters.network
+      - name: envoy.health_checkers.redis
+        category: envoy.health_checkers
+        type_urls:
+        - envoy.extensions.health_checkers.redis.v3.Redis
+      - name: envoy.health_checkers.thrift
+        category: envoy.health_checkers
+        type_urls:
+        - envoy.extensions.health_checkers.thrift.v3.Thrift
+    static_resources:
+      clusters:
+      - name: xds_cluster
+        type: STRICT_DNS
+        connect_timeout: 1s
+        transport_socket:
+          name: envoy.transport_sockets.tls
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+            common_tls_context:
+              tls_params:
+                tls_maximum_protocol_version: TLSv1_3
+              tls_certificate_sds_secret_configs:
+              - name: xds_certificate
+                sds_config:
+                  resource_api_version: V3
+                  path_config_source:
+                    path: "/sds/xds-certificate.json"
+              validation_context_sds_secret_config:
+                name: xds_trusted_ca
+                sds_config:
+                  resource_api_version: V3
+                  path_config_source:
+                    path: "/sds/xds-trusted-ca.json"
+        load_assignment:
+          cluster_name: xds_cluster
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: higress
+                    port_value: 18000
+        typed_extension_protocol_options:
+          envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+            "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+            explicit_http_config:
+              http2_protocol_options: {}
+    dynamic_resources:
+      lds_config:
+        api_config_source:
+          api_type: DELTA_GRPC
+          grpc_services:
+          - envoy_grpc:
+              cluster_name: xds_cluster
+          set_node_on_first_message_only: true
+          transport_api_version: V3
+        resource_api_version: V3
+      cds_config:
+        api_config_source:
+          api_type: DELTA_GRPC
+          grpc_services:
+          - envoy_grpc:
+              cluster_name: xds_cluster
+          set_node_on_first_message_only: true
+          transport_api_version: V3
+        resource_api_version: V3
+    admin:
+      address:
+        socket_address:
+          address: 127.0.0.1
+          port_value: 15000
+      access_log:
+      - name: envoy.access_loggers.file
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+          path: "/dev/null"
+    layered_runtime:
+      layers:
+      - name: runtime-0
+        rtds_layer:
+          name: runtime-0
+          rtds_config:
+            api_config_source:
+              api_type: DELTA_GRPC
+              grpc_services:
+              - envoy_grpc:
+                  cluster_name: xds_cluster
+              transport_api_version: V3
+            resource_api_version: V3
+  last_updated: '2023-02-23T09:05:23.422Z'
+- "@type": type.googleapis.com/envoy.admin.v3.ClustersConfigDump
+  version_info: '2'
+  static_clusters:
+  - cluster:
+      "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: xds_cluster
+      type: STRICT_DNS
+      connect_timeout: 1s
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+          common_tls_context:
+            tls_params:
+              tls_maximum_protocol_version: TLSv1_3
+            tls_certificate_sds_secret_configs:
+            - name: xds_certificate
+              sds_config:
+                resource_api_version: V3
+                path_config_source:
+                  path: "/sds/xds-certificate.json"
+            validation_context_sds_secret_config:
+              name: xds_trusted_ca
+              sds_config:
+                resource_api_version: V3
+                path_config_source:
+                  path: "/sds/xds-trusted-ca.json"
+      load_assignment:
+        cluster_name: xds_cluster
+        endpoints:
+        - lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: higress
+                  port_value: 18000
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
+    last_updated: '2023-02-23T09:05:23.436Z'
+  dynamic_active_clusters:
+  - version_info: 2a0a1698a9d3e05b802047b0cd36b52a070afa49042e1ba267168c5265c7cabf
+    cluster:
+      "@type": type.googleapis.com/envoy.config.cluster.v3.Cluster
+      name: default-backend-rule-0-match-0-www.example.com
+      type: STATIC
+      connect_timeout: 5s
+      dns_lookup_family: V4_ONLY
+      outlier_detection: {}
+      common_lb_config:
+        locality_weighted_lb_config: {}
+      load_assignment:
+        cluster_name: default-backend-rule-0-match-0-www.example.com
+        endpoints:
+        - locality: {}
+          lb_endpoints:
+          - endpoint:
+              address:
+                socket_address:
+                  address: 0.0.0.0
+                  port_value: 3000
+            load_balancing_weight: 1
+          load_balancing_weight: 1
+    last_updated: '2023-02-23T09:05:38.443Z'
+- "@type": type.googleapis.com/envoy.admin.v3.ListenersConfigDump
+  version_info: '2'
+  dynamic_listeners:
+  - name: default-higress-http
+    active_state:
+      version_info: 42c71fb50c315ee3a32b327da69f8cc0baf420bc84b747e82d9c38e1b0c33eb2
+      listener:
+        "@type": type.googleapis.com/envoy.config.listener.v3.Listener
+        name: default-higress-http
+        address:
+          socket_address:
+            address: 0.0.0.0
+            port_value: 10080
+        access_log:
+        - name: envoy.access_loggers.file
+          filter:
+            response_flag_filter:
+              flags:
+              - NR
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+            path: "/dev/stdout"
+        default_filter_chain:
+          filters:
+          - name: envoy.filters.network.http_connection_manager
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+              stat_prefix: http
+              rds:
+                config_source:
+                  api_config_source:
+                    api_type: DELTA_GRPC
+                    grpc_services:
+                    - envoy_grpc:
+                        cluster_name: xds_cluster
+                    set_node_on_first_message_only: true
+                    transport_api_version: V3
+                  resource_api_version: V3
+                route_config_name: default-higress-http
+              http_filters:
+              - name: envoy.filters.http.router
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+              access_log:
+              - name: envoy.access_loggers.file
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+                  path: "/dev/stdout"
+              use_remote_address: true
+              upgrade_configs:
+              - upgrade_type: websocket
+      last_updated: '2023-02-23T09:05:38.446Z'
+- "@type": type.googleapis.com/envoy.admin.v3.ScopedRoutesConfigDump
+- "@type": type.googleapis.com/envoy.admin.v3.RoutesConfigDump
+  dynamic_route_configs:
+  - version_info: cb1e51997a9c3aa6f4d920f39fd5bdbd966e9382b7b6bdf42efca8c22c6c3442
+    route_config:
+      "@type": type.googleapis.com/envoy.config.route.v3.RouteConfiguration
+      name: default-higress-http
+      virtual_hosts:
+      - name: default-higress-http
+        domains:
+        - "*"
+        routes:
+        - match:
+            prefix: "/"
+            headers:
+            - name: ":authority"
+              string_match:
+                exact: www.example.com
+          route:
+            cluster: default-backend-rule-0-match-0-www.example.com
+    last_updated: '2023-02-23T09:05:38.448Z'
+- "@type": type.googleapis.com/envoy.admin.v3.SecretsConfigDump
+  dynamic_active_secrets:
+  - name: xds_certificate
+    last_updated: '2023-02-23T09:05:23.442Z'
+    secret:
+      "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
+      name: xds_certificate
+      tls_certificate:
+        certificate_chain:
+          inline_bytes: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURLekNDQWhPZ0F3SUJBZ0lFTnJRVi9qQU5CZ2txaGtpRzl3MEJBUXNGQURBc01SWXdGQVlEVlFRREV3MWwKYm5admVTMW5ZWFJsZDJGNU1SSXdFQVlEVlFRRkV3azFOalE0TXpRek9EVXdIaGNOTWpNd01qRTNNRE0wTVRJNApXaGNOTWpRd01qRTRNRE0wTVRJNFdqQU1NUW93Q0FZRFZRUUREQUVxTUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGCkFBT0NBUThBTUlJQkNnS0NBUUVBNmdNSTJSNElEeE5mQ2o1YmZHU1hVUjF4YkVjRjE5VXlhVC9VUEZZcFltM0gKN2c4T3Z6YWRlelFyRkt3dG9PWWFDN0hjam8zVnVHSmhqSDQ1Z3lVbWFzSEg1Q1gzaWFlRlhxQXdVQjRqVTZQSgpBbElCZWlMRVdZVjN1VjMwcGlKK09DWFhrUEQzSFFVb0ZYbnljcHM3OE9PbjZoS0wwNUY0YkJsT2UrMFdIUHdECll2dFQ4TEdpVmcrSkxhR2lxaGgxOXY5endwQUd2akI2Z09kN1BjdkNQNFExUHdkMWdMSnNXVFNweGhDUEVPb2kKV2ZSOG56RERVUHU5aXc2QTJObW1XQ1FxSVNYcDlZUmJMTEdjZnV4VURjcFVYMHpqY0xvcE1sajBnM0RkYVpWRwpzNm9JcW9BSjZ6MFhvdWwrM0ZZdUtJYy8rT1V3VkR1VkI4K0ZRZzlYdlFJREFRQUJvM1V3Y3pBT0JnTlZIUThCCkFmOEVCQU1DQlBBd0hRWURWUjBPQkJZRUZKaUJ3cytVaFRlT2p1L1ZXT29LQWNTSmZBeXVNQjhHQTFVZEl3UVkKTUJhQUZCT3kvOGkxeVMxRWxpN0tNK0gyeXZEM1BJMG1NQ0VHQTFVZEVRUWFNQmlDRmlvdVpXNTJiM2t0WjJGMApaWGRoZVMxemVYTjBaVzB3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUZraHdIakZtQWxqdEpheU54WitodURGCm5UdWd0REZvSTBFT2J0cUhLYnloWU9sdlNFdkhxbFNQSHNRUUhmQnQwbHpOOEtGUTd2YWxTSHRBZStlNzBETHkKaGY3TDQ3eklST3NLcmtmb0tjMjRqaUhNQkVwbCtJdjllU1RWVG9WemxzazVZUGxET2lrMzZpRUY3WDVVZ0RheApsVllZZnpSYzRUb0poODMwT285Wm9pai9LM295dVNXcTVGRzVFWExmeW9tQzZPQ3dxRm5GNzRSM21FTjVheDRlCnppVm5QVDNxVmFZdytzNngwSVhHU282U2M3Q2lUbmMrckFNa3FJNVNsK2p5RHhKTkZBQlIvRllCcTQzK1B1UGkKN0YxOEw0N2l3aVFFYU82NUJzU2hlYmg1Qk1VbytDdzIyM3JsMGRpTldwY3FrdVhtT1BWNDlrWkZkdHpFNytVPQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+        private_key:
+          inline_bytes: W3JlZGFjdGVkXQ==
+  - name: xds_trusted_ca
+    last_updated: '2023-02-23T09:05:23.447Z'
+    secret:
+      "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
+      name: xds_trusted_ca
+      validation_context:
+        trusted_ca:
+          inline_bytes: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURHRENDQWdDZ0F3SUJBZ0lFSWFxd1VUQU5CZ2txaGtpRzl3MEJBUXNGQURBc01SWXdGQVlEVlFRREV3MWwKYm5admVTMW5ZWFJsZDJGNU1SSXdFQVlEVlFRRkV3azFOalE0TXpRek9EVXdIaGNOTWpNd01qRTNNRE0wTVRJNApXaGNOTWpRd01qRTRNRE0wTVRJNFdqQXNNUll3RkFZRFZRUURFdzFsYm5admVTMW5ZWFJsZDJGNU1SSXdFQVlEClZRUUZFd2sxTmpRNE16UXpPRFV3Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRDIKeFMrNkRWY2FvbHFkVVBzTHZwNUtQMEQyV0hrTkVEY0tPeml3bzZNYm9wczFLYWJnNXVYSVl5T21JRWNTTXNKNwpHbVAxMlJjK0J3V1dFWXRrTHVPU3BwQm1lSjN3aDRrUlVRVTRTemRFU1dDcU40RTNpcTJib3FFVm53SkFGQ1ZpCldldGVjZkZsODZFalliQUxxSnRCbGJCbFFQM1ZMZ1hva0VVamJ4QmFobE1wZitUWkVJNFBuam1zUWN5a21LeXIKaDJwdmM3cnZYb29HTlhTM0Q0eFc1VDY3dmxLYi94UlM3c2gwTkJEU0dtTE1jY2pxWFZXazVOR2lBWVB3dXBWSwpTWG02dnZXUFZCdEd1bkZhS0JSRGx4TlJrb0wzRUN6UkNtenoxR2ZYMGJkSm1leElOM2VIUFBRdkd0M0txeUlnCkgrYnc0OXpqdlVUb2dNcXFpTlcvQWdNQkFBR2pRakJBTUE0R0ExVWREd0VCL3dRRUF3SUNwREFQQmdOVkhSTUIKQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXQkJRVHN2L0l0Y2t0UkpZdXlqUGg5c3J3OXp5TkpqQU5CZ2txaGtpRwo5dzBCQVFzRkFBT0NBUUVBd2dvZEsxalhVWFZDVXBTSjE0cEo3S3ZobWZPT1hkaVNISmNSSzlIUzI1c2xwOWN2CkJDSndmWUZmanJ4Rmc5TnV4aVpiM01oVXk5MDBqenBPdk1QWStEeUxFWFVxTGd5ZlBMUzYveVliem8yZHdwdzMKOCtrTXlsQUFlZmtaSW9oT0VhYSsvNFFBVVVGZVp1a1B6bmF6RzZIWnZKQkNxWVdRNXBaSSt3WTI1dzhEU0VOMgpkOCswVkpzWU5IdUk4aXhneGZhUkRycW5LRHBMUGJ3Z3VaRDl6ZkV3dVFaNG1oeEd0Vk1wR0NLSndscWFhdXJ0CkF5aGhzOXBHNERndkpSY1BLeFY4bndRdzZtSm55dkIxcExxTW1aQTVqZWhxbFNvUGVpWUlBMk1neU83cTVPYmMKL040bzBNTVdvZ1piRWR6aTBnTXJRT2lpNE41Q0ZlakVrYStIMmc9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+        match_typed_subject_alt_names:
+        - san_type: DNS
+          matcher:
+            exact: higress
+- "@type": type.googleapis.com/envoy.admin.v3.EndpointsConfigDump
+  staticEndpointConfigs:
+  - endpointConfig:
+      "@type": type.googleapis.com/envoy.config.endpoint.v3.ClusterLoadAssignment
+      clusterName: xds_cluster
+      endpoints:
+      - locality: {}
+        lbEndpoints:
+        - endpoint:
+            address:
+              socketAddress:
+                address: 0.0.0.0
+                portValue: 18000
+            healthCheckConfig: {}
+            hostname: higress
+          healthStatus: HEALTHY
+          metadata: {}
+          loadBalancingWeight: 1
+      policy:
+        overprovisioningFactor: 140

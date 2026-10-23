@@ -1,0 +1,526 @@
+{
+  "info": {
+    "description": "全球财经实时快讯API、全球财经经济数据日历API、全球财经财经大事日历API、全球财经假期日历API",
+    "title": "财经快讯数据接口（全球财经快讯、日历数据）",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/event/{year}/{date}": {
+      "get": {
+        "operationId": "全球财经财经大事日历",
+        "summary": "全球财经财经大事日历\n包括：时间、国家/地区、城市、重要性、事件",
+        "parameters": [
+          {
+            "description": "年",
+            "example": "2018",
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "日期",
+            "example": "0419",
+            "in": "path",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "importThingsId": {
+                        "type": "integer",
+                        "description": "导入事件ID"
+                      },
+                      "importDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "导入日期"
+                      },
+                      "importTime": {
+                        "type": "string",
+                        "description": "导入时间"
+                      },
+                      "country": {
+                        "type": "string",
+                        "description": "国家"
+                      },
+                      "city": {
+                        "type": "string",
+                        "description": "城市"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "事件标题"
+                      },
+                      "importance": {
+                        "type": "integer",
+                        "description": "重要性等级"
+                      },
+                      "createDt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "创建日期"
+                      },
+                      "outId": {
+                        "type": "string",
+                        "description": "外部ID"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/economics/{year}/{date}": {
+      "get": {
+        "operationId": "全球财经经济数据日历",
+        "summary": "全球财经经济数据日历\n包括：时间、国/区、指标名称、重要性、前值、预测值、公布值、影响",
+        "parameters": [
+          {
+            "description": "年",
+            "example": "2018",
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "日期",
+            "example": "0419",
+            "in": "path",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "economicCalId": {
+                        "type": "integer",
+                        "description": "经济日历ID"
+                      },
+                      "economicDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "经济日期"
+                      },
+                      "previous": {
+                        "type": "string",
+                        "description": "前值"
+                      },
+                      "unit": {
+                        "type": "string",
+                        "description": "单位"
+                      },
+                      "importance": {
+                        "type": "integer",
+                        "description": "重要性等级"
+                      },
+                      "publishDt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "发布时间"
+                      },
+                      "country": {
+                        "type": "string",
+                        "description": "国家"
+                      },
+                      "predicttime": {
+                        "type": "string",
+                        "description": "预测时间"
+                      },
+                      "forecast": {
+                        "type": "string",
+                        "description": "预期值"
+                      },
+                      "reality": {
+                        "type": "string",
+                        "description": "实际值"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "标题"
+                      },
+                      "effect": {
+                        "type": "string",
+                        "description": "影响"
+                      },
+                      "createDt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "创建时间"
+                      },
+                      "outId": {
+                        "type": "string",
+                        "description": "外部ID"
+                      },
+                      "kuaixunOutId": {
+                        "type": "string",
+                        "description": "快讯外部ID"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/kuaixun/newest": {
+      "get": {
+        "operationId": "全球财经实时快讯",
+        "summary": "全球财经实时快讯接口",
+        "parameters": [
+          {
+            "description": "size",
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "lastOutId",
+            "in": "query",
+            "name": "lastOutId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kuaixunId": {
+                        "type": "integer",
+                        "description": "快讯ID"
+                      },
+                      "type": {
+                        "type": "integer",
+                        "description": "快讯类型"
+                      },
+                      "outId": {
+                        "type": "string",
+                        "description": "外部ID"
+                      },
+                      "createDt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "创建时间"
+                      },
+                      "publishDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "发布时间"
+                      },
+                      "data": {
+                        "type": "string",
+                        "description": "快讯数据"
+                      },
+                      "quickMessage": {
+                        "type": "object",
+                        "properties": {
+                          "quickMessageId": {
+                            "type": "integer",
+                            "description": "快讯消息ID"
+                          },
+                          "datetime": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "消息时间"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "消息内容"
+                          },
+                          "fontColor": {
+                            "type": "integer",
+                            "description": "字体颜色"
+                          },
+                          "linkUrl": {
+                            "type": "string",
+                            "description": "链接URL"
+                          },
+                          "imgUrl": {
+                            "type": "string",
+                            "description": "图片URL"
+                          },
+                          "createDt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "创建时间"
+                          },
+                          "outId": {
+                            "type": "string",
+                            "description": "外部ID"
+                          }
+                        }
+                      },
+                      "economicCal": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "经济日历信息"
+                      },
+                      "showDate": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "显示日期"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/holiday/{year}/{date}": {
+      "get": {
+        "operationId": "全球财经假期日历",
+        "summary": "全球财经假期日历\n包括：时间、国/区、市场、节日、详细安排",
+        "parameters": [
+          {
+            "description": "年",
+            "example": "2018",
+            "in": "path",
+            "name": "year",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "日期",
+            "example": "0501",
+            "in": "path",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "holidayNoticesId": {
+                        "type": "integer",
+                        "description": "假期通知ID"
+                      },
+                      "holidayDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "假期日期"
+                      },
+                      "holidayTime": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "假期时间"
+                      },
+                      "holidayName": {
+                        "type": "string",
+                        "description": "假期名称"
+                      },
+                      "country": {
+                        "type": "string",
+                        "description": "国家"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "通知标题"
+                      },
+                      "site": {
+                        "type": "string",
+                        "description": "交易所"
+                      },
+                      "createDt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "创建时间"
+                      },
+                      "outId": {
+                        "type": "string",
+                        "description": "外部ID"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/kuaixun2/newest": {
+      "get": {
+        "operationId": "全球财经实时快讯与经济数据",
+        "summary": "全球财经实时快讯+经济数据接口",
+        "parameters": [
+          {
+            "description": "size",
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "lastOutId",
+            "in": "query",
+            "name": "lastOutId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kuaixunId": {
+                        "type": "integer",
+                        "description": "快讯ID"
+                      },
+                      "type": {
+                        "type": "integer",
+                        "description": "类型"
+                      },
+                      "outId": {
+                        "type": "string",
+                        "description": "外部ID"
+                      },
+                      "createDt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "创建时间"
+                      },
+                      "publishDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "发布时间"
+                      },
+                      "data": {
+                        "type": "string",
+                        "description": "数据"
+                      },
+                      "quickMessage": {
+                        "type": "object",
+                        "properties": {
+                          "quickMessageId": {
+                            "type": "integer",
+                            "description": "快讯消息ID"
+                          },
+                          "datetime": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "时间"
+                          },
+                          "content": {
+                            "type": "string",
+                            "description": "内容"
+                          },
+                          "fontColor": {
+                            "type": "integer",
+                            "description": "字体颜色"
+                          },
+                          "linkUrl": {
+                            "type": "string",
+                            "description": "链接URL"
+                          },
+                          "imgUrl": {
+                            "type": "string",
+                            "description": "图片URL"
+                          },
+                          "createDt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "创建时间"
+                          },
+                          "outId": {
+                            "type": "string",
+                            "description": "外部ID"
+                          }
+                        }
+                      },
+                      "economicCal": {
+                        "type": "object",
+                        "nullable": true,
+                        "description": "经济日历"
+                      },
+                      "showDate": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "显示日期"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://caijin.market.alicloudapi.com"
+    }
+  ]
+}

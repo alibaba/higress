@@ -1,0 +1,79 @@
+---
+description: Plugin Development Standards - Applies to all new wasm and golang-filter plugins
+globs:
+  - "plugins/wasm-go/extensions/*/**"
+  - "plugins/wasm-cpp/extensions/*/**"
+  - "plugins/wasm-rust/extensions/*/**"
+  - "plugins/wasm-assemblyscript/extensions/*/**"
+  - "plugins/golang-filter/*/**"
+alwaysApply: false
+---
+
+# Plugin Development Standards
+
+These rules apply when creating or materially changing a Wasm or golang-filter
+plugin. Follow the repository-wide build and test guidance in
+[`AGENTS.md`](../../AGENTS.md) and the
+[contributor guide](../../CONTRIBUTING_EN.md).
+
+## Agent participation and issue-spec gate
+
+Before implementation, determine whether an AI or coding agent will materially
+participate under the
+[agent-assisted contribution policy](../../docs/developers/agent-assisted-contributions.md).
+When material participation applies:
+
+- enter the Higress issue-spec workflow before implementation begins;
+- do not begin implementation until a Higress maintainer has approved the
+  Proposal Issue and Design Issue;
+- implement only through TASKs authorized by the approved Design and preserve
+  traceability to the applicable SPECs;
+- ensure the Design contains a concrete Verification Plan before verification
+  begins; and
+- complete the applicable implementation and verification TASKs with commands,
+  results, evidence links, and hashes before asking maintainers to accept the
+  verification or review.
+
+The maintainer-approved issue-spec Design Issue is the authoritative design
+carrier. No plugin-local `design/` directory, design document, or AI prompt file
+is required for this gate, and none should be created or required as a
+substitute for the approved Design Issue.
+
+Disclose the prompts or instructions given to the agent and provide an
+AI-assisted work summary in the pull request template, with secrets and
+sensitive data removed. Human-only work is outside this agent gate. The narrow
+trivial-edit exception is defined in the canonical policy and must be declared
+when used. A canonical-repository maintainer or administrator may use the
+verified maintainer/administrator exception only after completing the canonical
+policy's authenticated `gh` identity and collaborator-permission checks and
+recording the login, returned `role_name` of `maintain` or `admin`, and bypass
+rationale in the PR. The current PR author must match the verified login. This
+must include a positive attestation that both `GH_TOKEN` and `GITHUB_TOKEN`
+were unset for every verification command and fail closed on a missing, failed,
+or mismatched check; the accepting or merging maintainer independently validates
+current live evidence with token overrides unset. This does not waive bug-fix
+runtime verification.
+
+## Optional durable capability specs
+
+A durable capability spec is separate from the approved Design Issue and is
+created only when maintainers request it. Use the supported canonical layout
+`issue-spec/specs/<plugin-qualified-capability>/spec.md`, with a unique
+lowercase, hyphen-separated slug that identifies the plugin and capability.
+Do not place durable specs in plugin-owned directories. Higress leaves
+`durable_specs` unset; do not enable repository mode or invent a path setting
+without explicit maintainer direction.
+
+## Plugin README and testing
+
+Keep the plugin README current with its purpose and use cases, configuration
+fields and defaults, dependencies, limitations, and runnable usage examples.
+Document compatibility requirements when the plugin depends on a particular
+Higress release or data-plane capability.
+
+Add unit, integration, and end-to-end coverage as applicable, and record
+deterministic rerun commands in the pull request. Bug fixes must follow the
+repository runtime-verification policy: reproduce the affected baseline and
+confirm the fixed version with the same pinned inputs and configuration. Wasm
+runtime claims require evidence through a real proxy-Wasm data path; helper or
+native-mock tests alone are not sufficient.

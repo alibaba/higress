@@ -1,0 +1,581 @@
+server:
+  name: weather-query
+  config:
+    appCode: ""
+tools:
+  - name: aqi-forecast5days
+    description: 提供未来5天AQI数据
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/aqiforecast5days
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.aqiForecast**:  (Type: array)
+            - **data.aqiForecast[].date**: 预报日期 (Type: string)
+            - **data.aqiForecast[].publishTime**: 发布时间 (Type: string)
+            - **data.aqiForecast[].value**: 空气质量指数 (Type: integer)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 区县名称 (Type: string)
+            - **data.city.pname**: 所属省份或城市 (Type: string)
+        - **msg**: 响应消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 内部状态码 (Type: integer)
+          - **rc.p**: 内部状态描述 (Type: string)
+
+        ## Original Response
+
+  - name: weather-condition
+    description: 提供温度、湿度、风向、风速、紫外线、气压、体感温度等实时数据
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/condition
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 区县名称 (Type: string)
+            - **data.city.pname**: 城市名称 (Type: string)
+          - **data.condition**:  (Type: object)
+            - **data.condition.condition**: 天气状况 (Type: string)
+            - **data.condition.conditionId**: 天气状况ID (Type: string)
+            - **data.condition.humidity**: 湿度 (Type: string)
+            - **data.condition.icon**: 天气图标 (Type: string)
+            - **data.condition.pressure**: 气压 (Type: string)
+            - **data.condition.realFeel**: 实际体感温度 (Type: string)
+            - **data.condition.sunRise**: 日出时间 (Type: string)
+            - **data.condition.sunSet**: 日落时间 (Type: string)
+            - **data.condition.temp**: 温度 (Type: string)
+            - **data.condition.tips**: 天气提示 (Type: string)
+            - **data.condition.updatetime**: 更新时间 (Type: string)
+            - **data.condition.uvi**: 紫外线指数 (Type: string)
+            - **data.condition.windDir**: 风向 (Type: string)
+            - **data.condition.windLevel**: 风力等级 (Type: string)
+            - **data.condition.windSpeed**: 风速 (Type: string)
+        - **msg**: 响应消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 返回码 (Type: integer)
+          - **rc.p**: 返回信息 (Type: string)
+
+        ## Original Response
+
+  - name: weather-forecast15days
+    description: 提供未来15天天气预报
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/forecast15days
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 城市名称 (Type: string)
+            - **data.city.pname**: 省份名称 (Type: string)
+          - **data.forecast**:  (Type: array)
+            - **data.forecast[].conditionDay**: 白天天气状况 (Type: string)
+            - **data.forecast[].conditionIdDay**: 白天天气状况ID (Type: string)
+            - **data.forecast[].conditionIdNight**: 晚上天气状况ID (Type: string)
+            - **data.forecast[].conditionNight**: 晚上天气状况 (Type: string)
+            - **data.forecast[].moonphase**: 月相 (Type: string)
+            - **data.forecast[].moonrise**: 月升时间 (Type: string)
+            - **data.forecast[].moonset**: 月落时间 (Type: string)
+            - **data.forecast[].predictDate**: 预报日期 (Type: string)
+            - **data.forecast[].sunrise**: 日出时间 (Type: string)
+            - **data.forecast[].sunset**: 日落时间 (Type: string)
+            - **data.forecast[].tempDay**: 白天温度 (Type: string)
+            - **data.forecast[].tempNight**: 晚上温度 (Type: string)
+            - **data.forecast[].updatetime**: 更新时间 (Type: string)
+            - **data.forecast[].windDirDay**: 白天风向 (Type: string)
+            - **data.forecast[].windDirNight**: 晚上风向 (Type: string)
+            - **data.forecast[].windLevelDay**: 白天风力等级 (Type: string)
+            - **data.forecast[].windLevelNight**: 晚上风力等级 (Type: string)
+            - **data.forecast[].windSpeedDay**: 白天风速 (Type: string)
+            - **data.forecast[].windSpeedNight**: 晚上风速 (Type: string)
+        - **msg**: 响应消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 状态码 (Type: integer)
+          - **rc.p**: 状态信息 (Type: string)
+
+        ## Original Response
+
+  - name: weather-forecast24hours
+    description: 提供未来24小时逐小时天气预报
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/forecast24hours
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 区县名称 (Type: string)
+            - **data.city.pname**: 省份名称 (Type: string)
+          - **data.hourly**:  (Type: array)
+            - **data.hourly[].condition**: 天气状况 (Type: string)
+            - **data.hourly[].date**: 日期 (Type: string)
+            - **data.hourly[].hour**: 小时 (Type: string)
+            - **data.hourly[].humidity**: 湿度 (Type: string)
+            - **data.hourly[].iconDay**: 白天天气图标 (Type: string)
+            - **data.hourly[].iconNight**: 夜间天气图标 (Type: string)
+            - **data.hourly[].pressure**: 气压 (Type: string)
+            - **data.hourly[].realFeel**: 实感温度 (Type: string)
+            - **data.hourly[].temp**: 温度 (Type: string)
+            - **data.hourly[].uvi**: 紫外线指数 (Type: string)
+            - **data.hourly[].windDir**: 风向 (Type: string)
+            - **data.hourly[].windSpeed**: 风速 (Type: string)
+        - **msg**: 响应消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 详细状态码 (Type: integer)
+          - **rc.p**: 详细状态描述 (Type: string)
+
+        ## Original Response
+
+  - name: wather-alert
+    description: 提供各地天气预警信息
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/alert
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.alert**:  (Type: array)
+            - **data.alert[].content**: 预警内容 (Type: string)
+            - **data.alert[].infoid**: 预警信息ID (Type: integer)
+            - **data.alert[].level**: 预警级别 (Type: string)
+            - **data.alert[].name**: 预警名称 (Type: string)
+            - **data.alert[].pub_time**: 发布时间 (Type: string)
+            - **data.alert[].title**: 预警标题 (Type: string)
+            - **data.alert[].type**: 预警类型 (Type: string)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 区域名称 (Type: string)
+            - **data.city.pname**: 省份名称 (Type: string)
+        - **msg**: 响应消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 返回码 (Type: integer)
+          - **rc.p**: 返回消息 (Type: string)
+
+        ## Original Response
+
+  - name: life-index
+    description: 提供各项天气生活指数
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/index
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 城市名称 (Type: string)
+            - **data.city.pname**: 省份名称 (Type: string)
+          - **data.liveIndex**:  (Type: object)
+            - **data.liveIndex.2016-09-01**:  (Type: array)
+              - **data.liveIndex.2016-09-01[].day**: 日期 (Type: string)
+              - **data.liveIndex.2016-09-01[].desc**: 描述 (Type: string)
+              - **data.liveIndex.2016-09-01[].name**: 指数名称 (Type: string)
+              - **data.liveIndex.2016-09-01[].status**: 状态 (Type: string)
+        - **msg**: 响应消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 返回码 (Type: integer)
+          - **rc.p**: 返回信息 (Type: string)
+
+        ## Original Response
+
+  - name: next-hour-forecast
+    description: 提供未来2小时内精准预报
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/shortforecast
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 城市名称 (Type: string)
+            - **data.city.pname**: 省份名称 (Type: string)
+          - **data.sfc**:  (Type: object)
+            - **data.sfc.banner**: 位置天气提示 (Type: string)
+            - **data.sfc.percent**:  (Type: array)
+              - **data.sfc.percent[].desc**: 天气描述 (Type: string)
+              - **data.sfc.percent[].icon**: 图标编号 (Type: integer)
+              - **data.sfc.percent[].percent**: 下雨概率 (Type: number)
+            - **data.sfc.sfCondition**: 天气条件代码 (Type: integer)
+            - **data.sfc.timestamp**: 时间戳 (Type: integer)
+            - **data.sfc.useLbs**: 是否使用地理位置 (Type: integer)
+        - **msg**: 响应消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 详细状态码 (Type: integer)
+          - **rc.p**: 详细状态消息 (Type: string)
+
+        ## Original Response
+
+  - name: aqi-index
+    description: 提供空气质量指数及分项数据
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/aqi
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 状态码，0表示成功 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.aqi**:  (Type: object)
+            - **data.aqi.cityName**: 城市名称 (Type: string)
+            - **data.aqi.co**: 一氧化碳浓度 (Type: string)
+            - **data.aqi.no2**: 二氧化氮浓度 (Type: string)
+            - **data.aqi.o3**: 臭氧浓度 (Type: string)
+            - **data.aqi.pm10**: PM10颗粒物浓度 (Type: string)
+            - **data.aqi.pm25**: PM2.5颗粒物浓度 (Type: string)
+            - **data.aqi.pubtime**: 发布时间戳 (Type: string)
+            - **data.aqi.rank**: 空气质量排名 (Type: string)
+            - **data.aqi.so2**: 二氧化硫浓度 (Type: string)
+            - **data.aqi.value**: AQI值 (Type: string)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 城市名称 (Type: string)
+            - **data.city.pname**: 省份名称 (Type: string)
+        - **msg**: 返回消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 状态码 (Type: integer)
+          - **rc.p**: 状态描述 (Type: string)
+
+        ## Original Response
+
+  - name: restriction-query
+    description: 提供各地限行数据
+    args:
+      - name: lat
+        description: 纬度
+        type: string
+        required: true
+        position: body
+      - name: lon
+        description: 经度
+        type: string
+        required: true
+        position: body
+      - name: token
+        description: 请求token（默认参数，必填）
+        type: string
+        position: body
+    requestTemplate:
+      url: https://finaljwd.market.alicloudapi.com/whapi/json/aliweather/limit
+      method: POST
+      headers:
+        - key: Content-Type
+          value: application/x-www-form-urlencoded
+        - key: Authorization
+          value: APPCODE {{.config.appCode}}
+        - key: X-Ca-Nonce
+          value: '{{uuidv4}}'
+    responseTemplate:
+      prependBody: |+
+        # API Response Information
+
+        Below is the response from an API call. To help you understand the data, I've provided:
+
+        1. A detailed description of all fields in the response structure
+        2. The complete API response
+
+        ## Response Structure
+
+        > Content-Type: application/json
+
+        - **code**: 响应状态码 (Type: integer)
+        - **data**:  (Type: object)
+          - **data.city**:  (Type: object)
+            - **data.city.cityId**: 城市ID (Type: integer)
+            - **data.city.counname**: 国家名称 (Type: string)
+            - **data.city.name**: 城市名 (Type: string)
+            - **data.city.pname**: 省份名 (Type: string)
+          - **data.limit**:  (Type: array)
+            - **data.limit[].date**: 日期 (Type: string)
+            - **data.limit[].prompt**: 提示信息 (Type: string)
+        - **msg**: 响应消息 (Type: string)
+        - **rc**:  (Type: object)
+          - **rc.c**: 返回码 (Type: integer)
+          - **rc.p**: 返回消息 (Type: string)
+
+        ## Original Response
+

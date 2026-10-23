@@ -1,0 +1,171 @@
+{
+  "info": {
+    "description": "提供北京、天津、杭州、成都、兰州、贵阳、南昌、长春、哈尔滨、武汉、上海、深圳等城市的车辆限行时间、区域、尾号等查询。",
+    "title": "【极速数据】车辆尾号限行_车辆尾号限行规则查询_车辆尾号限行城市查询_车辆尾号限行区域查询",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.1",
+  "paths": {
+    "/vehiclelimit/city": {
+      "get": {
+        "operationId": "获取城市接口",
+        "summary": "获取城市代号和城市名称。",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "status": {
+                      "description": "状态码，0表示成功",
+                      "example": "0",
+                      "type": "string"
+                    },
+                    "msg": {
+                      "description": "响应消息",
+                      "example": "ok",
+                      "type": "string"
+                    },
+                    "result": {
+                      "description": "城市列表",
+                      "items": {
+                        "properties": {
+                          "city": {
+                            "description": "城市代码",
+                            "example": "beijing",
+                            "type": "string"
+                          },
+                          "cityname": {
+                            "description": "城市名称",
+                            "example": "北京",
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    },
+    "/vehiclelimit/query": {
+      "get": {
+        "operationId": "城市限行查询接口",
+        "summary": "通过城市代号和日期获取城市车辆限行信息查询。",
+        "parameters": [
+          {
+            "description": "城市代号",
+            "example": "hangzhou",
+            "in": "query",
+            "name": "city",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "日期 默认为今天 格式为：2015-12-02",
+            "example": "2016-07-12",
+            "in": "query",
+            "name": "date",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "状态码",
+                      "example": "0"
+                    },
+                    "msg": {
+                      "type": "string",
+                      "description": "消息",
+                      "example": "ok"
+                    },
+                    "result": {
+                      "type": "object",
+                      "properties": {
+                        "city": {
+                          "type": "string",
+                          "description": "城市代码",
+                          "example": "hangzhou"
+                        },
+                        "cityname": {
+                          "type": "string",
+                          "description": "城市名称",
+                          "example": "杭州"
+                        },
+                        "date": {
+                          "type": "string",
+                          "description": "日期",
+                          "example": 1449100800000
+                        },
+                        "week": {
+                          "type": "string",
+                          "description": "星期",
+                          "example": "星期四"
+                        },
+                        "time": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "限行时间段",
+                          "example": [
+                            "07:00-09:00",
+                            "16:30-18:30"
+                          ]
+                        },
+                        "area": {
+                          "type": "string",
+                          "description": "限行区域描述"
+                        },
+                        "summary": {
+                          "type": "string",
+                          "description": "限行规则摘要",
+                          "example": "本市号牌尾号限行，外地号牌全部限行。法定上班的周六周日不限行。"
+                        },
+                        "numberrule": {
+                          "type": "string",
+                          "description": "限行号码规则",
+                          "example": "最后一位数字"
+                        },
+                        "number": {
+                          "type": "string",
+                          "description": "限行号码",
+                          "example": "4和6"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "description": "成功响应"
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://jisuclwhxx.market.alicloudapi.com"
+    }
+  ]
+}
